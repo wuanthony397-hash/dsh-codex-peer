@@ -15,6 +15,11 @@ DSH: codex_plan(goal: "add retry logic")          →  the split is recorded as 
      (or the DSH agent writes its own review of the same diff)
 ```
 
+> **Not affiliated with OpenAI or DeepSeek.** This plugin ships no code from either project: it
+> drives the Codex CLI you installed yourself and uses the plugin API DeepSeek Harness publishes.
+> "Codex" is a trademark of OpenAI and DeepSeek Harness is a DeepSeek project. You need your own
+> Codex CLI installed and signed in; how you use it is your responsibility.
+
 ## What it adds
 
 | Tool | What it does |
@@ -65,6 +70,31 @@ dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.2.
 
 The plugin contributes a `dsh.bundle`, so DSH records it in `dsh.profile.bundles`. A restart
 (or profile reload) is required before the tools appear: bundles compose at startup.
+
+## Quick start
+
+1. Install it (any way above) and **restart DSH** — the five tools appear only after a restart,
+   because bundles compose at startup.
+2. Check the setup by asking your agent *"check the codex peer status"*: it calls `codex_status` and
+   prints where the Codex executable was found, the effective settings, and the work list.
+3. Ask for the collaboration you want, in plain language — the agent calls the tools for you:
+
+| What you say | What happens |
+| --- | --- |
+| "Split this between you two: Codex does the retry logic, you do the tests" | a user-directed split, recorded as a shared work list |
+| "Work out between yourselves how to do X" | this agent drafts the split, Codex critiques it, then it is recorded |
+| "Do it as a pipeline: plan, implement, review, fix" | four staged tasks, each with an owner |
+| "Let Codex write a first version, then attack it" | one task produces, the other attacks |
+| "Both of you attempt it independently, then compare" | two independent attempts plus a comparison task |
+| "Just ask Codex what it thinks about X" | a single consulted answer, no work list |
+
+4. Then work the list: *"show the work list"*, *"run the Codex side of task 2"*, *"task 2 is done,
+   the evidence is the passing test run"*. Creating the plan asks for approval once; afterwards the
+   tasks it covers no longer prompt. Each task carries a Codex budget (5 runs / 2M tokens by
+   default) and cannot be marked done without evidence.
+
+Every tool and every knob is documented in the sections below — none of it is required reading to
+start, because the agent drives the tools.
 
 ## Configuration
 
