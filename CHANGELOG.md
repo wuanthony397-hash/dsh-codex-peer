@@ -4,6 +4,16 @@ All notable changes to `dsh-codex-peer` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.3] — 2026-10-08
+
+### Fixed
+
+- The install instructions no longer suggest `dsh plugin add dsh-codex-peer` "from the plugin market
+  or package registry": the package is not on npm and is not listed in the market, so that command
+  would fail. Both READMEs now say so plainly and give the four routes that work — a tag-pinned
+  GitHub install, the default branch, a downloaded release tarball, or a local clone — and warn that
+  the tarball path is recorded in the profile, so the file has to stay put.
+
 ## [0.2.2] — 2026-10-08
 
 ### Added

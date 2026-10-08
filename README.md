@@ -57,19 +57,27 @@ and uses the first that exists:
 
 ## Install
 
+This plugin is **not published to npm and is not listed in the plugin market** — install it from
+GitHub, or from the tarball attached to a release. Either way it contributes a `dsh.bundle`, so DSH
+records it in `dsh.profile.bundles`; a restart (or profile reload) is required before the tools
+appear, because bundles compose at startup.
+
 ```bash
-# through the DSH CLI (works while the desktop app is running)
+# from GitHub, pinned to a release tag (recommended)
+dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.2.3
+
+# or from GitHub, tracking the default branch
+dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer
+
+# or from a release tarball you downloaded — works offline, but keep the file where it is:
+# the profile records that path, so moving or deleting it breaks the next install
+dsh plugin --profile <profile> add /path/to/dsh-codex-peer-0.2.3.tgz
+
+# or from a local clone, when you are working on the plugin itself
 dsh plugin --profile <profile> add /absolute/path/to/dsh-codex-peer
-
-# or from the plugin market / package registry
-dsh plugin --profile <profile> add dsh-codex-peer
-
-# or straight from GitHub, pinned to a tag
-dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.2.1
 ```
 
-The plugin contributes a `dsh.bundle`, so DSH records it in `dsh.profile.bundles`. A restart
-(or profile reload) is required before the tools appear: bundles compose at startup.
+Release tarballs live at <https://github.com/wuanthony397-hash/dsh-codex-peer/releases>.
 
 ## Quick start
 

@@ -53,19 +53,26 @@ Codex 桌面版不会把自己放进 `PATH`，因此按以下顺序探测，取�
 
 ## 安装
 
+本插件**没有发布到 npm，也没有上架插件市场** —— 请从 GitHub 安装，或用 Release 里的压缩包。
+两种方式都会带上 `dsh.bundle`，DSH 会把它登记到 `dsh.profile.bundles`；bundle 在启动时组装，
+因此**需要重启（或重载 profile）**工具才会出现。
+
 ```bash
-# 通过 DSH CLI 安装（桌面版运行中也能装）
+# 从 GitHub 安装，锁定到某个发布 tag（推荐）
+dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.2.3
+
+# 或从 GitHub 安装，跟随默认分支
+dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer
+
+# 或用你下载下来的 Release 压缩包 —— 可离线安装，但请把文件留在原处：
+# profile 记录的是这个路径，移动或删除它会让下次安装失败
+dsh plugin --profile <profile> add /path/to/dsh-codex-peer-0.2.3.tgz
+
+# 或从本地克隆目录安装，适合自己改插件的时候
 dsh plugin --profile <profile> add /absolute/path/to/dsh-codex-peer
-
-# 或从插件市场 / 包注册表安装
-dsh plugin --profile <profile> add dsh-codex-peer
-
-# 或直接从 GitHub 安装（锁定到 tag）
-dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.2.1
 ```
 
-插件自带 `dsh.bundle`，DSH 会把它登记到 `dsh.profile.bundles`。bundle 在启动时组装，
-因此**需要重启（或重载 profile）**工具才会出现。
+Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releases>。
 
 ## 快速上手
 
