@@ -3,7 +3,7 @@
 让 DeepSeek Harness（DSH）的 agent 与**本机 OpenAI Codex CLI** 以「同伴」方式协作。
 
 这不是集成：Codex 保留自己的会话、工具、技能、沙箱与模型，DSH 也保留自己的一套。两个 agent
-像在同一個仓库上的两个人那样交接工作 —— 一个先做一遍，另一个审查；一个出计划，另一个执行 ——
+像在同一个仓库上的两个人那样交接工作 —— 一个先做一遍，另一个审查；一个出计划，另一个执行 ——
 通过普通的工具调用和共享工作树里的文件完成。
 
 ```
@@ -28,8 +28,7 @@ DSH：codex_plan(goal: "加重试逻辑")              → 分工被记录成共
 | `codex_plan` | 商定并记录一个目标在本 agent（`dsh`）与 Codex 同伴之间如何分工，形成双方共读的共享工作清单。必填 `goal`；分工已定时用 `tasks` 传入。批准这次调用即批准该计划。 |
 | `codex_task` | 推进该清单：`action: list \| show \| claim \| update \| record-evidence \| set-budget \| run`。`action: run` 是挂在任务上的普通同伴运行 —— 任务超出 Codex 预算时被拒绝，计入该任务，续接该任务的 Codex 线程，结果记为证据。 |
 
-每次运行都会留档：拼好的提示词、原始 `--json` 事件流、stderr、最终回答与元数据，全部在
-`$DSH_HOME/codex-peer/` 下。共享工作清单也在同一目录：`tasks.json` 及其 `tasks.ndjson` 历史。
+每次运行与工作清单写在哪里，见[输出与留档](#输出与留档)。
 
 ## 前置条件
 
@@ -76,25 +75,224 @@ Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releas
 
 ## 快速上手
 
+### 安装、重启、验证
+
 1. 按上面任意一种方式装好，然后**重启 DSH** —— 五个工具只在重启后出现（bundle 在启动时组装）。
 2. 检查环境：对 agent 说一句「看一下 codex 的状态」，它会调用 `codex_status`，打印 Codex 可执行
    文件的位置、生效配置和当前工作清单。
-3. 用大白话说明你想要哪种协作，agent 会替你调工具：
 
-| 你说 | 会发生什么 |
+然后用大白话说明你要什么。你不需要点名模式 —— 你描述协作方式，agent 挑配方。
+
+### 六种模式
+
+每种模式最终都落到一次工具调用上。`codex_plan` 必填 `goal`；分工已定时用 `tasks` 传入（每项必填
+`title`，可带 `owner`、`acceptance`、`scope`、`tags`、`why`），`budget`、`replace`、`mirror`、`cwd`
+控制其余行为；`mode` 是同一份工作清单上的配方。
+
+#### `assigned` —— 你指定谁做什么
+
+- **你说：**「这个你俩分工：Codex 做重试逻辑，你做测试。」
+- **agent 做什么：** 调用 `codex_plan`，`mode: "assigned"`，带上 `goal`，以及每块工作一条 `tasks`
+  记录 —— 每条含 `owner`（`dsh` 或 `codex`）、`acceptance`，可选 `scope`、`tags`、`why`。这份分工
+  不需要协商，所以可以给 `propose: "none"`，跳过 Codex 的批评。
+- **你拿到什么：** 已记录的工作清单 —— 任务 id、负责人、验收标准 —— 每个任务一行摘要。
+  `codex_task action: list` 随时能再打印同一份清单。
+- **什么时候选它：** 你已经知道怎么分工，只需要把它写下来。
+
+#### `self-organizing` —— 两个 agent 按能力自己商量
+
+- **你说：**「你俩自己商量怎么把 X 做出来。」
+- **agent 做什么：** 调用 `codex_plan`，`mode: "self-organizing"`。默认 `propose: "dsh"` 时，本 agent
+  先起草分工，把草案交给 Codex 在一份 JSON schema 下批评，把批评里的风险并入备注，然后落成清单。
+  `propose: "codex"` 让 Codex 先起草；`propose: "none"` 跳过批评，直接按草案记录。
+- **你拿到什么：** 已记录的工作清单；只要跑过批评，还会看到 Codex 的批评摘要与逐条风险。
+- **什么时候选它：** 分工并不显然，你希望两个 agent 在开工前都表态。
+
+#### `pipeline` —— 分阶段推进
+
+- **你说：**「按流水线来：计划 → 实现 → 审查 → 修复。」
+- **agent 做什么：** 调用 `codex_plan`，`mode: "pipeline"`，建出四个阶段任务：`Plan:`（codex）、
+  `Implement:`（codex）、`Review:`（codex）、`Fix and verify:`（dsh）—— 每个都有负责人和验收标准。
+- **你拿到什么：** 按顺序排好的四个任务，每个都能单独用 `codex_task action: run` 跑，于是每个阶段
+  都留下自己的证据。
+- **什么时候选它：** 工作本来就有先后顺序，你希望每个阶段都能单独被审查。
+
+#### `adversarial` —— 一方攻击另一方
+
+- **你说：**「让 Codex 先写一版，然后你来攻击它。」
+- **agent 做什么：** 调用 `codex_plan`，`mode: "adversarial"`，`producer: "codex"`，建出一条由 Codex
+  负责的产出任务和一条由本 agent 负责的攻击任务。`producer` 决定谁先写；默认是 `dsh`，也就是默认
+  由 Codex 来攻击。
+- **你拿到什么：** 两条任务 —— 一条产出、一条攻击 —— 攻击方的发现项记录为攻击任务的证据。
+- **什么时候选它：** 你想要一版初稿，外加一次独立的拆台尝试。
+
+#### `blind` —— 各自独立做，再比较
+
+- **你说：**「你俩各自独立做一份，然后比较。」
+- **agent 做什么：** 调用 `codex_plan`，`mode: "blind"`，建出两份独立尝试（`Independent attempt (dsh)`
+  与 `Independent attempt (codex)`），再加一条由本 agent 负责的 `Compare and pick` 任务。
+- **你拿到什么：** 两份互不知情的尝试，以及一条以比较结果作为证据的决策任务。
+- **什么时候选它：** 你不想让一种思路先入为主地影响另一种。
+
+#### `consult` —— 只问一个问题，不建清单
+
+- **你说：**「就问 Codex 一句 X 怎么看。」
+- **agent 做什么：** 调用 `codex_ask`，把你这句话作为 prompt —— 若你想要的是对某份 diff 的结构化结论，
+  则改用 `codex_review`。工作清单里不记录任何东西。
+- **你拿到什么：** Codex 的回答，或带着按严重度排序发现项的审查结论，以及这次运行的留档。
+- **什么时候选它：** 你要的是一个意见，而不是一次分工。
+
+### 日常操作
+
+| 你说 | agent 调用 |
 | --- | --- |
-| 「这个你俩分工：Codex 做重试逻辑，你做测试」 | 按你指定的分工，记录成共享工作清单 |
-| 「你俩自己商量怎么把 X 做出来」 | 本 agent 先提案、Codex 提意见，然后落成清单 |
-| 「按流水线来：计划 → 实现 → 审查 → 修复」 | 四个阶段任务，各有负责人 |
-| 「让 Codex 先写一版，然后你来攻击它」 | 一个任务产出，另一个专门拆台 |
-| 「你俩各自独立做一份，然后比较」 | 两份独立尝试 + 一个比较任务 |
-| 「就问 Codex 一句 X 怎么看」 | 单次咨询，不建工作清单 |
+| 「看一下工作清单」/「看一下第二条」 | `codex_task action: list`，或单条任务用 `action: show, taskId: "2"` |
+| 「第二条交给 Codex」 | `codex_task action: claim, taskId: "2", owner: "codex"` |
+| 「跑第二条的 Codex 部分」 | `codex_task action: run, taskId: "2"` |
+| 「第二条做完了，凭据是测试通过」 | `codex_task action: record-evidence, taskId: "2", status: "done", evidence: { … }` |
+| 「给第二条加点预算」 | `codex_task action: set-budget, taskId: "2", budget: { … }` |
 
-4. 然后推进清单：「看一下工作清单」「跑第二条的 Codex 部分」「第二条做完了，凭据是测试通过」。
-   建清单时会审批一次，之后清单覆盖的任务不再逐次询问；每个任务带 Codex 额度（默认 5 次 /
-   200 万 token），并且**没有凭据不能标记完成**。
+### 三条规则
+
+- 建清单时会审批一次。`approvePerTask` 默认为 `true`，因此这份清单覆盖的任务之后不再逐次询问；
+  设为 `false` 则恢复逐次询问。
+- 每个任务都带 Codex 预算 —— 默认 5 次运行、200 万 token —— 预算用尽后，挂在任务上的运行会被拒绝
+  并说明原因。可以用 `codex_task action: set-budget` 提高。
+- **没有证据不能标记完成。** 证据还没到手时，把任务标为 `unverified`，并写明缺什么。
 
 下面各节把每个工具、每个配置项都写清楚了；但你不需要先读完 —— 让 agent 调就行。
+
+## 工作原理
+
+### 共享工作清单
+
+清单存在状态目录里：`tasks.json`（当前状态）加 `tasks.ndjson`（每次变更的追加式历史，因此
+「谁在何时指派了什么」事后仍可回答）。双方都读它，`codex_task` 推进它：
+
+| `action` | 作用 |
+| --- | --- |
+| `list` / `show` | 读取整个清单或单个任务。 |
+| `claim` | 认领任务，指定 owner。 |
+| `update` | 修改 `status`、`owner`、`acceptance`、`scope`、`tags` 或 `blockedBy`。 |
+| `record-evidence` | 附上证明该任务的证据，可同时设置状态。 |
+| `set-budget` | 提高或降低该任务的 Codex 预算。 |
+| `run` | 跑该任务的 Codex 一侧（见下）。 |
+
+任务状态恰好是 `todo`、`doing`、`blocked`、`done`、`unverified`。没有至少一条证据，任务不能
+被标为 `done`；标为 `unverified` 必须附一条说明缺什么的 note。证据种类为 `command`、`artifact`、
+`review`、`note`。
+
+`action: run` 是挂在任务上的普通同伴运行：任务超出 Codex 预算时被拒绝，计入该任务，续接该任务
+的 Codex 线程，结果记为证据。
+
+把 `planFile` 设为仓库相对路径（如 `.codex-peer/PLAN.md`）即可写出工作清单的 markdown 镜像。
+留空则不写文件，因为状态目录里的 `tasks.json` 始终是唯一事实来源。
+
+### 预算
+
+每个任务都带 `budget: {maxRuns, maxTokens}` 与 `spent: {runs, tokens}`。任务范围内的运行 ——
+`codex_task action:run`，或任何挂在任务上的运行 —— 在预算用尽后都会被拒绝，报错点明是哪个
+上限，并指向 `codex_task action:set-budget`。默认值为 `maxCodexRunsPerTask: 5`、
+`maxCodexTokensPerTask: 2000000`（`0` 表示不设 token 上限）。
+
+### 审批与沙箱
+
+启动 Codex 等于启动第二个能写同一个工作树的 agent，而这个子进程**不受 Harness 沙箱包裹**。
+交给 `codex exec` 的 `-s/--sandbox` 是唯一约束，所以插件默认先问：
+
+- `codex_plan` 一定会先问一次（除非 `requireApproval: never`），因为批准它才让 Codex 能在这些
+  任务范围内写盘。`approvePerTask: true`（默认）时，已批准任务中会写盘的 Codex 运行不再逐次
+  询问；`approvePerTask: false` 则恢复逐次询问。
+- `requireApproval: mutating`（默认）对任何可能写盘的运行提问：`mode: implement`、
+  `sandbox: workspace-write`、`sandbox: danger-full-access` —— 但 `approvePerTask` 下已被批准任务
+  覆盖的运行除外。
+- `codex_review` 固定 `read-only`，在 `mutating` 下不会触发审批。
+- 审批走 Harness 的审批服务，且是 fail-closed：没有可用的审批者时直接拒绝，而不是照跑。
+
+Codex 自己需要写它的 home（`~/.codex`：状态、日志、`auth.json`）。若调用报
+`failed to initialize in-process app-server client: 拒绝访问 (os error 5)` 或
+`could not create PATH aliases`，说明当前限制下 Codex 的 home 不可写 —— 为该命令放宽沙箱，
+或把 `codexHome` 指到可写目录（此时需要复制一份 `auth.json`，并注意 Codex 会轮换 refresh token）。
+
+### 后台运行
+
+Harness 的 job 服务加载后（base bundle 自带），每次运行都会成为由调用 agent 拥有的 job：
+
+- `background: true` 立即返回 job 句柄；
+- 前台调用超过 `callTimeoutMs` 会被**提升**为后台而不是被杀，工具结果里会给出 job id；
+- `job_output` 可读取插件喂给 job 的进度（线程开始、每条命令与退出码、文件变更、token 用量），
+  `job_kill` 取消运行并终止 Codex 进程树。
+
+没有 job 服务时工具依然可用；`background: true` 会带着原因被拒绝，而不是悄悄换个行为。
+
+### 一次运行如何拼起来
+
+1. 提示词是一份协作契约，而不只是你的原话：说明共享工作树、说明**没有人类会回答问题**（因此
+   Codex 必须自行假设并继续）、改动限制在请求范围内、最终消息必须自洽（改了什么、证据、未决问题）。
+   `promptPreamble` 可替换该契约。
+2. 提示词走 **stdin**（`codex exec … -`），不走命令行 —— Windows 命令行上限约 32k 字符，交接提示
+   很容易超过。
+3. `codex exec resume` 既不接受 `-s/--sandbox` 也不接受 `-C/--cd`，因此续跑用
+   `-c sandbox_mode="…"` 固定沙箱，工作目录由子进程的 cwd 决定。
+4. 进程监管优选 Harness 的子进程接缝（`ctx.subprocess`）：环境清理、整棵进程范围的
+   SIGTERM→宽限→SIGKILL 终止阶梯，以及服务销毁时不留下孤儿 `codex.exe`。没有该接缝时退回
+   `node:child_process`，Windows 上用 `taskkill /T`、其他平台杀进程组；回退会记在运行结果里。
+5. 事件流被增量折叠：线程 id、逐项进度（命令、文件变更、待办、MCP 与联网搜索项）、最终回答、
+   token 用量与所有错误。
+
+## 输出与留档
+
+每次运行都留两份：一份写在你能读到的地方，一份是插件读取的记录。
+
+### 工作目录：你读的那份
+
+插件把可读镜像写在该次运行的工作目录下，路径是 `<cwd>/<workspaceDir>/` —— 默认
+`<cwd>/.codex-peer/`：
+
+```
+<cwd>/.codex-peer/
+├── README.md                # 这个目录是什么，以及删掉也没关系
+├── worklist.md              # 共享工作清单的可读镜像
+├── LATEST.md                # 最新一次运行的留档，一个文件就能看到刚刚发生了什么
+└── runs/<runId>/
+    ├── transcript.md        # 完整可读留档：拼好的请求、每条命令及其退出码、
+    │                        # 改动的文件、最终回答、token 与耗时
+    ├── prompt.md            # 原样交给 Codex stdin 的文本
+    ├── events.jsonl         # 原始 `codex exec --json` 事件流
+    ├── stderr.txt           # Codex 诊断（令牌刷新告警、传输回退等）
+    ├── answer.md            # Codex 写出的最终消息（-o）
+    └── meta.json            # 结果记录：状态、退出码、用量、命令、文件变更、备注
+```
+
+这个目录就是你用来看协作过程的地方：`worklist.md` 是清单当前的样子，`LATEST.md` 是刚结束的那次
+运行，`runs/<runId>/transcript.md` 是任意一次运行的完整记录。它删掉也没关系，加进 `.gitignore`
+也没关系 —— 插件会重新写。把 `workspaceDir` 设为 `''` 可以完全关掉这份镜像。
+
+### 状态目录：插件读的那份
+
+状态目录是 `$DSH_HOME/codex-peer` —— 未设置 `DSH_HOME` 时即
+`C:\Users\AnthonyWu\.dsh\codex-peer`。它是唯一事实来源：
+
+```
+$DSH_HOME/codex-peer/
+├── runs.ndjson              # 每次运行一条 JSON：状态、模式、沙箱、用量、线程、标签
+├── threads.json             # 工作目录 → 最近的 Codex 线程 id（continueFromLast 读它）
+├── tasks.json               # 共享工作清单：当前状态
+├── tasks.ndjson             # 工作清单每次变更的追加式历史
+└── runs/<runId>/
+    ├── prompt.md            # 原样交给 Codex stdin 的文本
+    ├── events.jsonl         # 原始 `codex exec --json` 事件流
+    ├── stderr.txt           # Codex 诊断（令牌刷新告警、传输回退等）
+    ├── answer.md            # Codex 写出的最终消息（-o）
+    ├── meta.json            # 结果记录：状态、退出码、用量、命令、文件变更、备注
+    └── output-schema.json   # 仅 schema 约束的运行（如 codex_review）才有
+```
+
+不会自动清理：在意体积时自行删除旧的 `runs/<runId>`。配置的 `planFile` 镜像写在仓库里，
+不写在这个目录。
+
+各一句话：工作目录里的那份是给人看的 —— 读它、删它、在 git 里忽略它都行；状态目录里的那份是
+插件读的记录 —— 运行索引、线程记忆，以及它继续推进的工作清单。
 
 ## 配置
 
@@ -134,125 +332,12 @@ Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releas
 | `maxCodexRunsPerTask` | `5` | 一个任务在被拒绝前可花的 Codex 运行次数。可用 `codex_task action:set-budget` 按任务调整。 |
 | `maxCodexTokensPerTask` | `2000000` | 一个任务在被拒绝前可花的 Codex token 数；`0` 表示不设 token 上限。 |
 | `approvePerTask` | `true` | 为 `true` 时，批准一次计划即覆盖该任务内会写盘的 Codex 运行，不再逐次询问；`false` 则恢复逐次询问。 |
-
-## 规划分工
-
-`codex_plan` 把「谁做什么」记录成双方共读的工作清单。必填 `goal`；分工已定时用 `tasks` 传入
-（每项必填 `title`，另可带 `owner`、`acceptance`、`scope`、`tags`、`why`），`budget`、`replace`、
-`mirror`、`cwd` 控制其余行为。`mode` 是同一份工作清单上的配方：
-
-| 模式 | 分工如何决定 |
-| --- | --- |
-| `assigned`（默认） | 用户指定了谁做什么。 |
-| `self-organizing` | 由路由表按能力决定；本 agent 先起草分工，Codex 在其被记录前提出批评（默认 `propose: dsh`）。 |
-| `pipeline` | 切成阶段：Plan（codex）、Implement（codex）、Review（codex）、Fix and verify（dsh）。 |
-| `adversarial` | 一方产出，另一方攻击（`producer` 决定谁先写；默认 `dsh`，因此由 Codex 攻击）。 |
-| `blind` | 双方各自独立求解，再由 dsh 比较并选择。 |
-| `consult` | 不分工：单个问题，由一方回答。 |
-
-`propose` ∈ `dsh`（默认：本 agent 起草，Codex 批评）、`codex`（Codex 先起草）、`none`（按现状
-记录分工，不调用 Codex）。
+| `workspaceDir` **（新增）** | `.codex-peer` | 可读镜像写到哪里：相对于该次运行工作目录的路径（见[输出与留档](#输出与留档)）。**留空字符串则完全关闭工作目录镜像。** |
 
 路由表就是普通数据（`routingRules`）：每条 `{when, owner, reason}` 用小写词或短语匹配任务的
 标题、标签与 scope，先匹配者胜。内置规则把 bulk/rename/migrate/review/audit/second-opinion/
 survey/summarize/draft 交给 `codex`，把 debug/interactive/plugin/install/verify/integration/
 decision 交给 `dsh`，每条都带一行理由。没有规则匹配时由 `defaultOwner`（默认 `dsh`）接手。
-
-## 共享工作清单
-
-清单存在状态目录里：`tasks.json`（当前状态）加 `tasks.ndjson`（每次变更的追加式历史，因此
-「谁在何时指派了什么」事后仍可回答）。双方都读它，`codex_task` 推进它：
-
-| `action` | 作用 |
-| --- | --- |
-| `list` / `show` | 读取整个清单或单个任务。 |
-| `claim` | 认领任务，指定 owner。 |
-| `update` | 修改 `status`、`owner`、`acceptance`、`scope`、`tags` 或 `blockedBy`。 |
-| `record-evidence` | 附上证明该任务的证据，可同时设置状态。 |
-| `set-budget` | 提高或降低该任务的 Codex 预算。 |
-| `run` | 跑该任务的 Codex 一侧（见下）。 |
-
-任务状态恰好是 `todo`、`doing`、`blocked`、`done`、`unverified`。没有至少一条证据，任务不能
-被标为 `done`；标为 `unverified` 必须附一条说明缺什么的 note。证据种类为 `command`、`artifact`、
-`review`、`note`。
-
-`action: run` 是挂在任务上的普通同伴运行：任务超出 Codex 预算时被拒绝，计入该任务，续接该任务
-的 Codex 线程，结果记为证据。
-
-把 `planFile` 设为仓库相对路径（如 `.codex-peer/PLAN.md`）即可写出工作清单的 markdown 镜像。
-留空则不写文件，因为状态目录里的 `tasks.json` 始终是唯一事实来源。
-
-## 预算
-
-每个任务都带 `budget: {maxRuns, maxTokens}` 与 `spent: {runs, tokens}`。任务范围内的运行 ——
-`codex_task action:run`，或任何挂在任务上的运行 —— 在预算用尽后都会被拒绝，报错点明是哪个
-上限，并指向 `codex_task action:set-budget`。默认值为 `maxCodexRunsPerTask: 5`、
-`maxCodexTokensPerTask: 2000000`（`0` 表示不设 token 上限）。
-
-## 审批与沙箱
-
-启动 Codex 等于启动第二个能写同一个工作树的 agent，而这个子进程**不受 Harness 沙箱包裹**。
-交给 `codex exec` 的 `-s/--sandbox` 是唯一约束，所以插件默认先问：
-
-- `codex_plan` 一定会先问一次（除非 `requireApproval: never`），因为批准它才让 Codex 能在这些
-  任务范围内写盘。`approvePerTask: true`（默认）时，已批准任务中会写盘的 Codex 运行不再逐次
-  询问；`approvePerTask: false` 则恢复逐次询问。
-- `requireApproval: mutating`（默认）对任何可能写盘的运行提问：`mode: implement`、
-  `sandbox: workspace-write`、`sandbox: danger-full-access` —— 但 `approvePerTask` 下已被批准任务
-  覆盖的运行除外。
-- `codex_review` 固定 `read-only`，在 `mutating` 下不会触发审批。
-- 审批走 Harness 的审批服务，且是 fail-closed：没有可用的审批者时直接拒绝，而不是照跑。
-
-Codex 自己需要写它的 home（`~/.codex`：状态、日志、`auth.json`）。若调用报
-`failed to initialize in-process app-server client: 拒绝访问 (os error 5)` 或
-`could not create PATH aliases`，说明当前限制下 Codex 的 home 不可写 —— 为该命令放宽沙箱，
-或把 `codexHome` 指到可写目录（此时需要复制一份 `auth.json`，并注意 Codex 会轮换 refresh token）。
-
-## 后台运行
-
-Harness 的 job 服务加载后（base bundle 自带），每次运行都会成为由调用 agent 拥有的 job：
-
-- `background: true` 立即返回 job 句柄；
-- 前台调用超过 `callTimeoutMs` 会被**提升**为后台而不是被杀，工具结果里会给出 job id；
-- `job_output` 可读取插件喂给 job 的进度（线程开始、每条命令与退出码、文件变更、token 用量），
-  `job_kill` 取消运行并终止 Codex 进程树。
-
-没有 job 服务时工具依然可用；`background: true` 会带着原因被拒绝，而不是悄悄换个行为。
-
-## 磁盘状态
-
-```
-$DSH_HOME/codex-peer/
-├── runs.ndjson              # 每次运行一条 JSON：状态、模式、沙箱、用量、线程、标签
-├── threads.json             # 工作目录 → 最近的 Codex 线程 id（continueFromLast 读它）
-├── tasks.json               # 共享工作清单：当前状态
-├── tasks.ndjson             # 工作清单每次变更的追加式历史
-└── runs/<runId>/
-    ├── prompt.md            # 原样交给 Codex stdin 的文本
-    ├── events.jsonl         # 原始 `codex exec --json` 事件流
-    ├── stderr.txt           # Codex 诊断（令牌刷新告警、传输回退等）
-    ├── answer.md            # Codex 写出的最终消息（-o）
-    ├── meta.json            # 结果记录：状态、退出码、用量、命令、文件变更、备注
-    └── output-schema.json   # 仅 schema 约束的运行（如 codex_review）才有
-```
-
-不会自动清理：在意体积时自行删除旧的 `runs/<runId>`。配置的 `planFile` 镜像写在仓库里，
-不写在这个目录。
-
-## 一次同伴运行是怎样拼起来的
-
-1. 提示词是一份协作契约，而不只是你的原话：说明共享工作树、说明**没有人类会回答问题**（因此
-   Codex 必须自行假设并继续）、改动限制在请求范围内、最终消息必须自洽（改了什么、证据、未决问题）。
-   `promptPreamble` 可替换该契约。
-2. 提示词走 **stdin**（`codex exec … -`），不走命令行 —— Windows 命令行上限约 32k 字符，交接提示
-   很容易超过。
-3. `codex exec resume` 既不接受 `-s/--sandbox` 也不接受 `-C/--cd`，因此续跑用
-   `-c sandbox_mode="…"` 固定沙箱，工作目录由子进程的 cwd 决定。
-4. 进程监管优选 Harness 的子进程接缝（`ctx.subprocess`）：环境清理、整棵进程范围的
-   SIGTERM→宽限→SIGKILL 终止阶梯，以及服务销毁时不留下孤儿 `codex.exe`。没有该接缝时退回
-   `node:child_process`，Windows 上用 `taskkill /T`、其他平台杀进程组；回退会记在运行结果里。
-5. 事件流被增量折叠：线程 id、逐项进度（命令、文件变更、待办、MCP 与联网搜索项）、最终回答、
-   token 用量与所有错误。
 
 ## 工具返回值形状
 
@@ -310,13 +395,18 @@ lib/tools.js        `codex_ask`、`codex_review`、`codex_status` 及其文本�
 lib/tasks.js        共享工作清单：id、状态、证据、预算、历史
 lib/plan.js         六种模式、路由表与计划 JSON schema
 lib/planning-tools.js  `codex_plan` 与 `codex_task`
-test/unit.test.js   49 个离线测试
+test/unit.test.js   55 个离线测试
 ```
 
 ```bash
-npm test          # node test/unit.test.js —— 全部离线，不启动 Codex
-node --test test/ # 同样的测试，走测试运行器（需要能创建子进程）
+npm test                      # node test/unit.test.js —— 55 个测试全部离线，不启动 Codex
+node --test test/             # 同样的测试，走测试运行器（需要能创建子进程）
+node test/run-as-linux.mjs    # 同样的测试，让 process.platform 假装是 Linux
 ```
+
+`npm test` 跑 55 个离线测试。`node test/run-as-linux.mjs` 用同一套测试，只把 `process.platform`
+假装成 Linux —— 因为 Windows CI 与 Linux CI 两条腿走的是不同分支（`normalizeCwd` 的大小写折叠、
+`taskkill` 与 `process.kill`、detached spawn）。它是开发辅助脚本，不是测试。
 
 测试从不启动 Codex：`executeRun` 接收注入的 `spawnImpl` 来重放一段真实抓取的
 `codex exec --json` 事件流，「可执行文件在哪」则由测试自己创建的文件回答。

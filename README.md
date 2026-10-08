@@ -30,9 +30,7 @@ DSH: codex_plan(goal: "add retry logic")          →  the split is recorded as 
 | `codex_plan` | Agrees and records the split of a goal between this agent (`dsh`) and the Codex peer, as a shared work list both sides read. `goal` is required; `tasks` carries the split when it is already decided. Approving this call approves the plan. |
 | `codex_task` | Works that list: `action: list \| show \| claim \| update \| record-evidence \| set-budget \| run`. `action: run` is a normal peer run attached to a task — refused when the task is out of Codex budget, charged against the task, continuing the task's Codex thread, and its outcome recorded as evidence. |
 
-Every run is recorded: the assembled prompt, the raw `--json` event stream, stderr, the final
-answer, and a metadata record under `$DSH_HOME/codex-peer/`. The shared work list lives in the same
-directory: `tasks.json` plus its `tasks.ndjson` history.
+Where the runs and the work list are written is [Where everything is written](#where-everything-is-written).
 
 ## Requirements
 
@@ -81,28 +79,255 @@ Release tarballs live at <https://github.com/wuanthony397-hash/dsh-codex-peer/re
 
 ## Quick start
 
+### Install, restart, verify
+
 1. Install it (any way above) and **restart DSH** — the five tools appear only after a restart,
    because bundles compose at startup.
 2. Check the setup by asking your agent *"check the codex peer status"*: it calls `codex_status` and
    prints where the Codex executable was found, the effective settings, and the work list.
-3. Ask for the collaboration you want, in plain language — the agent calls the tools for you:
 
-| What you say | What happens |
+Then say what you want in plain language. You never name a mode — you describe the collaboration and
+the agent picks the recipe.
+
+### The six modes
+
+Every mode goes through one tool call. `codex_plan` takes a required `goal`; `tasks` carries a split
+that is already decided (each entry takes a required `title` plus `owner`, `acceptance`, `scope`,
+`tags`, and `why`), and `budget`, `replace`, `mirror`, and `cwd` shape the rest. `mode` is the recipe
+over that same work list.
+
+#### `assigned` — you name who does what
+
+- **You say:** "Split this between you two: Codex does the retry logic, you do the tests."
+- **What the agent does:** calls `codex_plan` with `mode: "assigned"`, the `goal`, and one `tasks`
+  entry per piece, each with `owner` (`dsh` or `codex`), `acceptance`, and optionally `scope`,
+  `tags`, and `why`. Nothing has to be negotiated, so `propose: "none"` is allowed and skips the
+  critique.
+- **What you get back:** the recorded work list — task ids, owners, acceptance lines — printed as a
+  one-line summary per task. `codex_task action: list` prints the same list at any time.
+- **Pick it when:** you already know the split and want it written down.
+
+#### `self-organizing` — the two agents decide, by strength
+
+- **You say:** "Work out between yourselves how to do X."
+- **What the agent does:** calls `codex_plan` with `mode: "self-organizing"`. With the default
+  `propose: "dsh"`, this agent drafts the split, sends the draft to Codex for a critique under a JSON
+  schema, folds the critique's risks into the notes, and then records it. `propose: "codex"` lets
+  Codex draft first; `propose: "none"` skips the critique and records the draft as-is.
+- **What you get back:** the recorded work list, plus Codex's critique summary and its risk lines
+  whenever a critique ran.
+- **Pick it when:** the split is not obvious, and you want both agents to weigh in before anyone
+  starts.
+
+#### `pipeline` — staged work
+
+- **You say:** "Do it as a pipeline: plan, implement, review, fix."
+- **What the agent does:** calls `codex_plan` with `mode: "pipeline"`, which creates four staged
+  tasks: `Plan:` (codex), `Implement:` (codex), `Review:` (codex), and `Fix and verify:` (dsh) — each
+  with an owner and an acceptance line.
+- **What you get back:** the four tasks in order, each runnable on its own with
+  `codex_task action: run`, so every stage leaves its own evidence.
+- **Pick it when:** the work has a natural order and you want each stage to be reviewable on its own.
+
+#### `adversarial` — one side attacks the other
+
+- **You say:** "Let Codex write a first version, then attack it."
+- **What the agent does:** calls `codex_plan` with `mode: "adversarial"` and `producer: "codex"`,
+  which creates a produce task owned by Codex and an attack task owned by this agent. `producer`
+  picks who writes first; the default is `dsh`, so by default Codex is the attacker.
+- **What you get back:** two tasks — one produce, one attack — with the attacker's findings recorded
+  as the attack task's evidence.
+- **Pick it when:** you want a first version and an independent attempt to break it.
+
+#### `blind` — independent attempts, then compare
+
+- **You say:** "Both of you attempt it independently, then compare."
+- **What the agent does:** calls `codex_plan` with `mode: "blind"`, which creates two independent
+  attempts (`Independent attempt (dsh)` and `Independent attempt (codex)`) plus a `Compare and pick`
+  task owned by this agent.
+- **What you get back:** two attempts that did not see each other, and a decision task whose evidence
+  is the comparison.
+- **Pick it when:** you do not want one approach to anchor the other.
+
+#### `consult` — one question, no work list
+
+- **You say:** "Just ask Codex what it thinks about X."
+- **What the agent does:** calls `codex_ask` with your question as the prompt — or `codex_review`
+  when you want a structured verdict on a diff instead of prose. Nothing is recorded in the work
+  list.
+- **What you get back:** Codex's answer, or the review verdict with its severity-ranked findings, and
+  the run's transcript.
+- **Pick it when:** you want an opinion, not a division of labour.
+
+### Everyday actions
+
+| You say | The agent calls |
 | --- | --- |
-| "Split this between you two: Codex does the retry logic, you do the tests" | a user-directed split, recorded as a shared work list |
-| "Work out between yourselves how to do X" | this agent drafts the split, Codex critiques it, then it is recorded |
-| "Do it as a pipeline: plan, implement, review, fix" | four staged tasks, each with an owner |
-| "Let Codex write a first version, then attack it" | one task produces, the other attacks |
-| "Both of you attempt it independently, then compare" | two independent attempts plus a comparison task |
-| "Just ask Codex what it thinks about X" | a single consulted answer, no work list |
+| "show the work list" / "show task 2" | `codex_task action: list`, or `action: show, taskId: "2"` for one task |
+| "claim task 2 for Codex" | `codex_task action: claim, taskId: "2", owner: "codex"` |
+| "run the Codex side of task 2" | `codex_task action: run, taskId: "2"` |
+| "task 2 is done, the evidence is the passing test run" | `codex_task action: record-evidence, taskId: "2", status: "done", evidence: { … }` |
+| "give task 2 more budget" | `codex_task action: set-budget, taskId: "2", budget: { … }` |
 
-4. Then work the list: *"show the work list"*, *"run the Codex side of task 2"*, *"task 2 is done,
-   the evidence is the passing test run"*. Creating the plan asks for approval once; afterwards the
-   tasks it covers no longer prompt. Each task carries a Codex budget (5 runs / 2M tokens by
-   default) and cannot be marked done without evidence.
+### Three rules to remember
+
+- Creating a plan asks for approval once. `approvePerTask` defaults to `true`, so the tasks that plan
+  covers then run without a per-run prompt; set it to `false` to be asked per run.
+- Every task carries a Codex budget — 5 runs and 2M tokens by default — and a task-scoped run is
+  refused, with the reason, once the budget is spent. Raise it with
+  `codex_task action: set-budget`.
+- A task cannot be marked `done` without evidence. When the proof is not there yet, mark it
+  `unverified` and say what is missing.
 
 Every tool and every knob is documented in the sections below — none of it is required reading to
 start, because the agent drives the tools.
+
+## How it works
+
+### The shared work list
+
+The list is stored in the state directory as `tasks.json` (current state) plus `tasks.ndjson`
+(append-only history of every change, so "who assigned what, when" stays answerable). Both agents
+read it; `codex_task` moves it:
+
+| `action` | What it does |
+| --- | --- |
+| `list` / `show` | Read the whole list or one task. |
+| `claim` | Take a task, naming the owner. |
+| `update` | Change `status`, `owner`, `acceptance`, `scope`, `tags`, or `blockedBy`. |
+| `record-evidence` | Attach the proof behind a task, optionally setting its status. |
+| `set-budget` | Raise or lower the task's Codex budget. |
+| `run` | Run the task's Codex side (see below). |
+
+Task statuses are exactly `todo`, `doing`, `blocked`, `done`, `unverified`. A task cannot be marked
+`done` without at least one evidence entry; marking it `unverified` requires a note saying what is
+missing. Evidence kinds are `command`, `artifact`, `review`, and `note`.
+
+`action: run` is a normal peer run attached to a task: refused when the task is out of Codex
+budget, charged against the task, continuing the task's Codex thread, and its outcome recorded as
+evidence.
+
+Set `planFile` to write a markdown mirror of the work list at a repository-relative path such as
+`.codex-peer/PLAN.md`. Empty writes no file, because `tasks.json` in the state directory stays the
+single source of truth.
+
+### Budgets
+
+Every task carries `budget: {maxRuns, maxTokens}` and `spent: {runs, tokens}`. A task-scoped run —
+`codex_task action:run`, or any run attached to a task — is refused once the budget is reached, with
+a message naming the limit and pointing at `codex_task action:set-budget`. The defaults are
+`maxCodexRunsPerTask: 5` and `maxCodexTokensPerTask: 2000000` (`0` disables the token ceiling).
+
+### Approval and sandboxing
+
+Starting Codex starts a second agent with write access to the same tree — and that child is **not**
+wrapped by the Harness sandbox. The `-s/--sandbox` mode handed to `codex exec` is the only bound on
+what it writes, which is why the plugin asks first:
+
+- `codex_plan` is always asked for once (unless `requireApproval: never`), because approving it is
+  what lets Codex write inside those tasks. With `approvePerTask: true` (default) an approved task's
+  mutating Codex runs no longer ask one by one; `approvePerTask: false` restores per-run asking.
+- `requireApproval: mutating` (default) asks before any run that may write: `mode: implement`,
+  `sandbox: workspace-write`, or `sandbox: danger-full-access` — except a run covered by an approved
+  task under `approvePerTask`.
+- `codex_review` is pinned to `read-only` and never asks under `mutating`.
+- The ask goes through the Harness approval service, and it is fail-closed: with no approver
+  available the call is denied rather than run.
+
+Codex itself needs to write its own home directory (`~/.codex`: state, logs, `auth.json`). If a call
+fails with `failed to initialize in-process app-server client: 拒绝访问 (os error 5)` or
+`could not create PATH aliases`, Codex's home is not writable in the current confinement — widen the
+sandbox for that command, or point `codexHome` at a writable directory (a copy of `auth.json` is
+then required, and note Codex rotates refresh tokens).
+
+### Background runs
+
+With the Harness job service loaded (the base bundle provides it), every run becomes a job owned by
+the calling agent:
+
+- `background: true` returns immediately with a job handle;
+- a foreground call that outlives `callTimeoutMs` is **promoted** instead of killed, and the tool
+  result names the job;
+- `job_output` streams the progress lines the plugin feeds the job (thread start, each command and
+  its exit code, file changes, token usage), and `job_kill` cancels the run, terminating the Codex
+  process tree.
+
+Without the job service the tools still work; `background: true` is refused with an explanation
+instead of silently behaving differently.
+
+### How a run is assembled
+
+1. The prompt is a collaboration contract, not just your words: it states the shared working tree,
+   that no human will answer a question (so Codex must assume and proceed), that changes stay in
+   scope, and that the final message must stand alone with what changed, the evidence, and open
+   questions. `promptPreamble` replaces that contract.
+2. The prompt travels on **stdin** (`codex exec … -`), never on the command line — Windows caps a
+   command line at ~32k characters and a hand-off prompt exceeds that.
+3. `codex exec resume` accepts neither `-s/--sandbox` nor `-C/--cd`, so resumed runs pin the sandbox
+   with `-c sandbox_mode="…"` and inherit the working directory from the spawned process.
+4. Process supervision prefers the Harness subprocess seam (`ctx.subprocess`): environment scrubbing,
+   a whole-process-range SIGTERM→grace→SIGKILL ladder, and no orphaned `codex.exe` when the service
+   is disposed. Without that seam the plugin falls back to `node:child_process` and kills the tree
+   with `taskkill /T` on Windows or the process group elsewhere; the fallback is noted in the run
+   record.
+5. The event stream is folded incrementally: thread id, per-item progress (commands, file changes,
+   todos, MCP and web-search items), final answer, token usage, and every error.
+
+## Where everything is written
+
+Every run is recorded twice: once where you can read it, and once as the record the plugin reads.
+
+### The working directory: what you read
+
+The plugin writes a readable mirror under the run's working directory, at `<cwd>/<workspaceDir>/` —
+by default `<cwd>/.codex-peer/`:
+
+```
+<cwd>/.codex-peer/
+├── README.md                # what this folder is, and that deleting it is safe
+├── worklist.md              # a readable mirror of the shared work list
+├── LATEST.md                # the newest run's transcript, so one file shows what just happened
+└── runs/<runId>/
+    ├── transcript.md        # the full readable transcript: the assembled request, every command
+    │                        # with its exit code, the files changed, the final answer, tokens, duration
+    ├── prompt.md            # the exact text handed to Codex on stdin
+    ├── events.jsonl         # the raw `codex exec --json` event stream
+    ├── stderr.txt           # Codex diagnostics (token-refresh warnings, transport fallbacks, …)
+    ├── answer.md            # the final message as Codex wrote it (-o)
+    └── meta.json            # outcome record: status, exit code, usage, commands, file changes, notes
+```
+
+This folder is what you read to see the collaboration: `worklist.md` is the plan as it stands,
+`LATEST.md` is the run that just finished, and `runs/<runId>/transcript.md` is the full account of
+any run. It is safe to delete, and safe to add to `.gitignore` — the plugin rewrites it. Set
+`workspaceDir` to `''` to switch the mirror off entirely.
+
+### The state directory: what the plugin reads
+
+The state directory is `$DSH_HOME/codex-peer` — with `DSH_HOME` unset that is
+`C:\Users\AnthonyWu\.dsh\codex-peer`. It is the source of truth:
+
+```
+$DSH_HOME/codex-peer/
+├── runs.ndjson              # one JSON record per run: status, mode, sandbox, usage, thread, label
+├── threads.json             # working directory → last Codex thread id (what continueFromLast reads)
+├── tasks.json               # the shared work list: current state
+├── tasks.ndjson             # append-only history of every work-list change
+└── runs/<runId>/
+    ├── prompt.md            # the exact text handed to Codex on stdin
+    ├── events.jsonl         # the raw `codex exec --json` event stream
+    ├── stderr.txt           # Codex diagnostics (token-refresh warnings, transport fallbacks, …)
+    ├── answer.md            # the final message as Codex wrote it (-o)
+    ├── meta.json            # outcome record: status, exit code, usage, commands, file changes, notes
+    └── output-schema.json   # present only for schema-constrained runs such as codex_review
+```
+
+Nothing is pruned automatically: delete old `runs/<runId>` directories when you care about size. A
+configured `planFile` mirror is written into the repository, not into this directory.
+
+In one line each: the workspace copy is for the human — read it, delete it, ignore it in git; the
+state copy is the record the plugin reads — the run index, the thread memory, and the work list it
+continues from.
 
 ## Configuration
 
@@ -142,140 +367,13 @@ the tools. A patch row replaces the whole `config` block of that id, so state it
 | `maxCodexRunsPerTask` | `5` | How many Codex runs one task may spend before a task-scoped run is refused. Raise it per task with `codex_task action:set-budget`. |
 | `maxCodexTokensPerTask` | `2000000` | How many Codex tokens one task may spend before a task-scoped run is refused; `0` disables the token ceiling. |
 | `approvePerTask` | `true` | With `true`, approving a plan covers that task's mutating Codex runs, so they are not asked one by one. `false` restores per-run asking. |
-
-## Planning a split
-
-`codex_plan` records who does what as a work list both agents read. `goal` is required; `tasks`
-carries the split when it is already decided (each entry takes a required `title` plus `owner`,
-`acceptance`, `scope`, `tags`, and `why`), and `budget`, `replace`, `mirror`, and `cwd` shape the
-rest. `mode` is a recipe over the same work list:
-
-| Mode | How the split is decided |
-| --- | --- |
-| `assigned` (default) | The user named who does what. |
-| `self-organizing` | The routing table decided by strength; this agent drafts the split and Codex critiques it before it is recorded (default `propose: dsh`). |
-| `pipeline` | Cut into stages: Plan (codex), Implement (codex), Review (codex), Fix and verify (dsh). |
-| `adversarial` | One side produces, the other attacks it (`producer` picks who writes first; dsh is the default, so Codex attacks). |
-| `blind` | Both sides solve it independently, then dsh compares and picks. |
-| `consult` | No split: a single question, answered by one side. |
-
-`propose` ∈ `dsh` (default: this agent drafts, Codex critiques), `codex` (Codex drafts first), or
-`none` (record the split as-is without calling Codex).
+| `workspaceDir` **(new)** | `.codex-peer` | Path, relative to the run's working directory, where the readable mirror is written (see [Where everything is written](#where-everything-is-written)). **An empty string disables the workspace mirror entirely.** |
 
 The routing table is plain data (`routingRules`): each `{when, owner, reason}` matches a lower-case
 word or phrase against a task's title, tags and scope, first match wins. The shipped rules send
 bulk/rename/migrate/review/audit/second-opinion/survey/summarize/draft to `codex`, and
 debug/interactive/plugin/install/verify/integration/decision to `dsh`, each with a one-line reason.
 `defaultOwner` (default `dsh`) takes whatever no rule matches.
-
-## The shared work list
-
-The list is stored in the state directory as `tasks.json` (current state) plus `tasks.ndjson`
-(append-only history of every change, so "who assigned what, when" stays answerable). Both agents
-read it; `codex_task` moves it:
-
-| `action` | What it does |
-| --- | --- |
-| `list` / `show` | Read the whole list or one task. |
-| `claim` | Take a task, naming the owner. |
-| `update` | Change `status`, `owner`, `acceptance`, `scope`, `tags`, or `blockedBy`. |
-| `record-evidence` | Attach the proof behind a task, optionally setting its status. |
-| `set-budget` | Raise or lower the task's Codex budget. |
-| `run` | Run the task's Codex side (see below). |
-
-Task statuses are exactly `todo`, `doing`, `blocked`, `done`, `unverified`. A task cannot be marked
-`done` without at least one evidence entry; marking it `unverified` requires a note saying what is
-missing. Evidence kinds are `command`, `artifact`, `review`, and `note`.
-
-`action: run` is a normal peer run attached to a task: refused when the task is out of Codex
-budget, charged against the task, continuing the task's Codex thread, and its outcome recorded as
-evidence.
-
-Set `planFile` to write a markdown mirror of the work list at a repository-relative path such as
-`.codex-peer/PLAN.md`. Empty writes no file, because `tasks.json` in the state directory stays the
-single source of truth.
-
-## Budgets
-
-Every task carries `budget: {maxRuns, maxTokens}` and `spent: {runs, tokens}`. A task-scoped run —
-`codex_task action:run`, or any run attached to a task — is refused once the budget is reached, with
-a message naming the limit and pointing at `codex_task action:set-budget`. The defaults are
-`maxCodexRunsPerTask: 5` and `maxCodexTokensPerTask: 2000000` (`0` disables the token ceiling).
-
-## Approval and sandboxing
-
-Starting Codex starts a second agent with write access to the same tree — and that child is **not**
-wrapped by the Harness sandbox. The `-s/--sandbox` mode handed to `codex exec` is the only bound on
-what it writes, which is why the plugin asks first:
-
-- `codex_plan` is always asked for once (unless `requireApproval: never`), because approving it is
-  what lets Codex write inside those tasks. With `approvePerTask: true` (default) an approved task's
-  mutating Codex runs no longer ask one by one; `approvePerTask: false` restores per-run asking.
-- `requireApproval: mutating` (default) asks before any run that may write: `mode: implement`,
-  `sandbox: workspace-write`, or `sandbox: danger-full-access` — except a run covered by an approved
-  task under `approvePerTask`.
-- `codex_review` is pinned to `read-only` and never asks under `mutating`.
-- The ask goes through the Harness approval service, and it is fail-closed: with no approver
-  available the call is denied rather than run.
-
-Codex itself needs to write its own home directory (`~/.codex`: state, logs, `auth.json`). If a call
-fails with `failed to initialize in-process app-server client: 拒绝访问 (os error 5)` or
-`could not create PATH aliases`, Codex's home is not writable in the current confinement — widen the
-sandbox for that command, or point `codexHome` at a writable directory (a copy of `auth.json` is
-then required, and note Codex rotates refresh tokens).
-
-## Background runs
-
-With the Harness job service loaded (the base bundle provides it), every run becomes a job owned by
-the calling agent:
-
-- `background: true` returns immediately with a job handle;
-- a foreground call that outlives `callTimeoutMs` is **promoted** instead of killed, and the tool
-  result names the job;
-- `job_output` streams the progress lines the plugin feeds the job (thread start, each command and
-  its exit code, file changes, token usage), and `job_kill` cancels the run, terminating the Codex
-  process tree.
-
-Without the job service the tools still work; `background: true` is refused with an explanation
-instead of silently behaving differently.
-
-## State on disk
-
-```
-$DSH_HOME/codex-peer/
-├── runs.ndjson              # one JSON record per run: status, mode, sandbox, usage, thread, label
-├── threads.json             # working directory → last Codex thread id (what continueFromLast reads)
-├── tasks.json               # the shared work list: current state
-├── tasks.ndjson             # append-only history of every work-list change
-└── runs/<runId>/
-    ├── prompt.md            # the exact text handed to Codex on stdin
-    ├── events.jsonl         # the raw `codex exec --json` event stream
-    ├── stderr.txt           # Codex diagnostics (token-refresh warnings, transport fallbacks, …)
-    ├── answer.md            # the final message as Codex wrote it (-o)
-    ├── meta.json            # outcome record: status, exit code, usage, commands, file changes, notes
-    └── output-schema.json   # present only for schema-constrained runs such as codex_review
-```
-
-Nothing is pruned automatically: delete old `runs/<runId>` directories when you care about size. A
-configured `planFile` mirror is written into the repository, not into this directory.
-
-## How a peer run is assembled
-
-1. The prompt is a collaboration contract, not just your words: it states the shared working tree,
-   that no human will answer a question (so Codex must assume and proceed), that changes stay in
-   scope, and that the final message must stand alone with what changed, the evidence, and open
-   questions. `promptPreamble` replaces that contract.
-2. The prompt travels on **stdin** (`codex exec … -`), never on the command line — Windows caps a
-   command line at ~32k characters and a hand-off prompt exceeds that.
-3. `codex exec resume` accepts neither `-s/--sandbox` nor `-C/--cd`, so resumed runs pin the sandbox
-   with `-c sandbox_mode="…"` and inherit the working directory from the spawned process.
-4. Process supervision prefers the Harness subprocess seam (`ctx.subprocess`): environment scrubbing,
-   a whole-process-range SIGTERM→grace→SIGKILL ladder, and no orphaned `codex.exe` when the service
-   is disposed. Without that seam the plugin falls back to `node:child_process` and kills the tree
-   with `taskkill /T` on Windows or the process group elsewhere; the fallback is noted in the run
-   record.
-5. The event stream is folded incrementally: thread id, per-item progress (commands, file changes,
-   todos, MCP and web-search items), final answer, token usage, and every error.
 
 ## Tool result shape
 
@@ -333,13 +431,19 @@ lib/tools.js        `codex_ask`, `codex_review`, `codex_status` and their text r
 lib/tasks.js        the shared work list: ids, statuses, evidence, budgets, history
 lib/plan.js         the six modes, the routing table, and the plan JSON schema
 lib/planning-tools.js  `codex_plan` and `codex_task`
-test/unit.test.js   49 offline tests
+test/unit.test.js   55 offline tests
 ```
 
 ```bash
-npm test          # node test/unit.test.js — all tests offline, no Codex process
-node --test test/ # the same tests through the test runner (needs child processes)
+npm test                      # node test/unit.test.js — all 55 tests offline, no Codex process
+node --test test/             # the same tests through the test runner (needs child processes)
+node test/run-as-linux.mjs    # the same suite with process.platform pretending to be Linux
 ```
+
+`npm test` runs 55 offline tests. `node test/run-as-linux.mjs` runs the same suite with
+`process.platform` pretending to be Linux, because the Windows CI leg and the Linux CI leg take
+different branches (case folding in `normalizeCwd`, `taskkill` versus `process.kill`, detached
+spawning); it is a development helper, not a test.
 
 The tests never start Codex: `executeRun` gets an injected `spawnImpl` that replays a captured
 `codex exec --json` stream, and discovery is answered with a file the test creates.
