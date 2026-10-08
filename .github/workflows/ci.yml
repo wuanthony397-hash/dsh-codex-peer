@@ -20,25 +20,35 @@ jobs:
         node: [20, 22]
     steps:
       - name: Check out the repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: ${{ matrix.node }}
 
       # The suite imports exactly one package: the Harness's schemastery peer.
       # A plain `npm install` would also pull the whole `@deepseek-ai/dsh` peer
-      # tree, which this plugin never imports and whose build scripts can fail
-      # on a runner — so install only what the tests need, without scripts.
+      # tree, which this plugin never imports — so install only what the tests
+      # need, without scripts.
       - name: Install the package the tests import
         run: npm install --no-save --no-audit --no-fund --ignore-scripts @deepseek-ai/schemastery@3.18.4
 
       - name: Verify the import resolves
         run: node -e "import('@deepseek-ai/schemastery').then(() => console.log('schemastery resolves'))"
 
+      # `pipefail` keeps the step's exit code honest through the pipe, and the
+      # transcript is what the next step turns into annotations.
       - name: Run the offline test suite
-        run: npm test
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test-output.txt
+
+      - name: Explain the failure in the run's annotations
+        if: failure()
+        run: node .github/scripts/report-failure.mjs test-output.txt
 
       - name: Check what would be published
+        if: success()
         run: npm pack --dry-run

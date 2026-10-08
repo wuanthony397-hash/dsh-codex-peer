@@ -275,7 +275,10 @@ test('the ledger creates run directories, indexes runs and remembers threads', (
     assert.equal(readFileSync(promptPath, 'utf8'), 'hello')
 
     ledger.setLastThread('C:\\Work\\Repo', 'thr-1')
-    assert.equal(ledger.lastThread('c:\\work\\repo\\'), 'thr-1')
+    // Trailing separators never matter; case only does on a case-insensitive
+    // filesystem, which is exactly what `normalizeCwd` encodes.
+    assert.equal(ledger.lastThread('C:\\Work\\Repo\\'), 'thr-1')
+    assert.equal(ledger.lastThread('c:\\work\\repo\\') ?? null, process.platform === 'win32' ? 'thr-1' : null)
     assert.equal(ledger.lastThread('C:\\other') ?? null, null)
 
     ledger.appendRun({
@@ -307,8 +310,15 @@ test('the ledger creates run directories, indexes runs and remembers threads', (
   }
 })
 
-test('normalizeCwd ignores case and trailing separators', () => {
-  assert.equal(normalizeCwd('C:\\Work\\Repo\\'), normalizeCwd('c:\\work\\repo'))
+test('normalizeCwd drops trailing separators and folds case on Windows', () => {
+  assert.equal(normalizeCwd('C:\\Work\\Repo\\'), normalizeCwd('C:\\Work\\Repo'))
+  assert.equal(normalizeCwd('/home/user/repo//'), '/home/user/repo')
+  if (process.platform === 'win32') {
+    assert.equal(normalizeCwd('C:\\Work\\Repo'), normalizeCwd('c:\\work\\repo'))
+  } else {
+    // A case-sensitive filesystem treats those as two different directories.
+    assert.notEqual(normalizeCwd('C:\\Work\\Repo'), normalizeCwd('c:\\work\\repo'))
+  }
 })
 
 test('needsApproval asks before anything that may write', () => {
