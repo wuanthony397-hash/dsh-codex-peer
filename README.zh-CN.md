@@ -273,13 +273,14 @@ Harness 的 job 服务加载后（base bundle 自带），每次运行都会成�
 ```
 
 这个目录就是你用来看协作过程的地方：`worklist.md` 是清单当前的样子，`LATEST.md` 是刚结束的那次
-运行，`runs/<runId>/transcript.md` 是任意一次运行的完整记录。它删掉也没关系，加进 `.gitignore`
-也没关系，插件会重新写。把 `workspaceDir` 设为 `''` 可以完全关掉这份镜像。
+运行，`runs/<runId>/transcript.md` 是任意一次运行的完整记录。它删掉也没关系，插件会重新写；它还
+会自动忽略自己——目录里的 `.gitignore` 就是 `*`，`git` 不会把这里的文件算进来，想提交某一次留档就
+点名：`git add -f .codex-peer/LATEST.md`。把 `workspaceDir` 设为 `''` 可以完全关掉这份镜像。
 
 ### 状态目录：插件读的那份
 
-状态目录是 `$DSH_HOME/codex-peer`，未设置 `DSH_HOME` 时即
-`C:\Users\AnthonyWu\.dsh\codex-peer`。它是唯一事实来源：
+状态目录是 `$DSH_HOME/codex-peer`，未设置 `DSH_HOME` 时即 `~/.dsh/codex-peer`（Windows 上是
+`%USERPROFILE%\.dsh\codex-peer`）。它是唯一事实来源：
 
 ```
 $DSH_HOME/codex-peer/

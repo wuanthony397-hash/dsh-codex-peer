@@ -307,13 +307,15 @@ by default `<cwd>/.codex-peer/`:
 
 This folder is what you read to see the collaboration: `worklist.md` is the plan as it stands,
 `LATEST.md` is the run that just finished, and `runs/<runId>/transcript.md` is the full account of
-any run. It is safe to delete, and safe to add to `.gitignore`; the plugin rewrites it. Set
+any run. Delete it any time — the plugin rewrites it — and it ignores itself: the `.gitignore` inside
+is `*`, so git reports nothing from this folder. To commit a transcript on purpose, name it:
+`git add -f .codex-peer/LATEST.md`. Set
 `workspaceDir` to `''` to switch the mirror off entirely.
 
 ### The state directory: what the plugin reads
 
-The state directory is `$DSH_HOME/codex-peer`. With `DSH_HOME` unset, that is
-`C:\Users\AnthonyWu\.dsh\codex-peer`. It is the source of truth:
+The state directory is `$DSH_HOME/codex-peer`. With `DSH_HOME` unset, that is `~/.dsh/codex-peer`
+— `%USERPROFILE%\.dsh\codex-peer` on Windows. It is the source of truth:
 
 ```
 $DSH_HOME/codex-peer/

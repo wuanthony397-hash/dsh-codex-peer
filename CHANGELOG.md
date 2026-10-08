@@ -4,6 +4,16 @@ All notable changes to `dsh-codex-peer` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.3] — 2026-10-08
+
+### Changed
+
+- The mirror in the working directory now ignores itself: `.codex-peer/.gitignore` contains `*`, so
+  an incidental `git add .` cannot sweep transcripts of agent runs into a repository. Committing one
+  on purpose still works with `git add -f .codex-peer/LATEST.md`, and both READMEs say so.
+- The READMEs no longer print the maintainer's Windows profile path as the example state directory;
+  they show `%USERPROFILE%\.dsh\codex-peer` instead.
+
 ## [0.3.2] — 2026-10-08
 
 ### Changed

@@ -1071,8 +1071,15 @@ test('mirrorRun writes the readable copy into the working tree', () => {
     assert.ok(readFileSync(mirrored.worklist, 'utf8').includes('task-1'))
     assert.ok(readFileSync(join(work, '.codex-peer', 'README.md'), 'utf8').includes('LATEST.md'))
 
+    // The mirror keeps itself out of git: transcripts are the plugin's most
+    // sensitive output, and `git add .` should not be able to sweep them in.
+    const selfIgnore = readFileSync(join(work, '.codex-peer', '.gitignore'), 'utf8')
+    assert.ok(selfIgnore.split('\n').includes('*'))
+    assert.ok(readFileSync(join(work, '.codex-peer', 'README.md'), 'utf8').includes('git add -f'))
+
     const refreshed = mirrorWorklist({ cwd: work, config: subject.config, tasks: subject.tasks.list(), at: '2026-10-08T11:00:00.000Z' })
     assert.equal(refreshed, mirrored.worklist)
+    assert.ok(existsSync(join(work, '.codex-peer', '.gitignore')))
     assert.equal(mirrorWorklist({ cwd: work, config: config({ workspaceDir: '' }), tasks: subject.tasks.list() }), undefined)
     assert.equal(mirrorWorklist({ cwd: work, config: subject.config, tasks: [] }), undefined)
   } finally {
