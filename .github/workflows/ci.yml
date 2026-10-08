@@ -27,8 +27,15 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
 
-      - name: Install the Harness peer packages
-        run: npm install --no-audit --no-fund
+      # The suite imports exactly one package: the Harness's schemastery peer.
+      # A plain `npm install` would also pull the whole `@deepseek-ai/dsh` peer
+      # tree, which this plugin never imports and whose build scripts can fail
+      # on a runner — so install only what the tests need, without scripts.
+      - name: Install the package the tests import
+        run: npm install --no-save --no-audit --no-fund --ignore-scripts @deepseek-ai/schemastery@3.18.4
+
+      - name: Verify the import resolves
+        run: node -e "import('@deepseek-ai/schemastery').then(() => console.log('schemastery resolves'))"
 
       - name: Run the offline test suite
         run: npm test
