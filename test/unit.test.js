@@ -28,6 +28,7 @@ import { countFindings, normalizeReview, parseLooseJson } from '../lib/review.js
 import { executeRun, planRun, promptLabel } from '../lib/runner.js'
 import { codexAskTool, codexStatusTool, registerTools, renderAskResult, renderReviewResult, renderStatusResult } from '../lib/tools.js'
 import { toJsonValue } from '../lib/json.js'
+import { mirrorRun, mirrorWorklist, renderTranscript, workspaceRoot } from '../lib/workspace.js'
 import { PLAN_SCHEMA, ROUTING_DEFAULTS, buildPlanPrompt, expandMode, renderPlanMarkdown, renderTaskLine, routeTask } from '../lib/plan.js'
 import { codexPlanTool, codexTaskTool, renderPlanResult, renderTaskResult, taskView } from '../lib/planning-tools.js'
 import { createTaskStore } from '../lib/tasks.js'
@@ -964,5 +965,151 @@ test('every registered tool answers with lossless JSON', async () => {
     assertLossless(task.presentCall({ action: 'list' }))
   } finally {
     rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('workspaceRoot resolves the mirror and refuses when it is off or the directory is missing', () => {
+  const dir = tempDir('workspace-root')
+  try {
+    assert.equal(workspaceRoot(config({ workspaceDir: '' }), dir), undefined)
+    assert.equal(workspaceRoot(config(), join(dir, 'not-there')), undefined)
+    assert.equal(workspaceRoot(config(), dir), join(dir, '.codex-peer'))
+    assert.equal(workspaceRoot(config({ workspaceDir: 'notes/peer' }), dir), join(dir, 'notes', 'peer'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the transcript says what was asked, what ran, and what came back', () => {
+  const outcome = {
+    status: 'completed',
+    runId: 'codex-1',
+    runDir: 'C:\\state\\runs\\codex-1',
+    mode: 'implement',
+    sandbox: 'workspace-write',
+    model: '',
+    cwd: 'C:\\work',
+    launcher: 'direct',
+    resumedThreadId: null,
+    threadId: 'thr-1',
+    answer: 'PEER_OK',
+    truncated: false,
+    usage: { inputTokens: 10, cachedInputTokens: 0, outputTokens: 2, totalTokens: 12 },
+    commands: [{ command: 'npm test', exitCode: 0 }],
+    fileChanges: ['update lib/a.js'],
+    errors: [],
+    notes: ['a note'],
+    exitCode: 0,
+    signal: null,
+    durationMs: 1234,
+    startedAt: '2026-10-08T10:00:00.000Z',
+    endedAt: '2026-10-08T10:00:01.234Z',
+  }
+  const text = renderTranscript({ prompt: 'Do the thing' }, outcome)
+  assert.ok(text.includes('# codex codex-1'))
+  assert.ok(text.includes('Do the thing'))
+  assert.ok(text.includes('`npm test` → exit 0'))
+  assert.ok(text.includes('update lib/a.js'))
+  assert.ok(text.includes('PEER_OK'))
+  assert.ok(text.includes('a note'))
+  assert.ok(text.includes('total 12'))
+})
+
+test('mirrorRun writes the readable copy into the working tree', () => {
+  const state = tempDir('mirror-state')
+  const work = tempDir('mirror-work')
+  try {
+    const subject = {
+      config: config({ workspaceDir: '.codex-peer' }),
+      ledger: createLedger({ dir: state }),
+      tasks: createTaskStore({ dir: state }),
+    }
+    subject.ledger.ensure()
+    subject.tasks.createMany([{ title: 'Ship it', owner: 'codex' }], { mode: 'assigned' })
+    const plan = planRun(subject, { prompt: 'Do it', mode: 'implement', cwd: work }, undefined)
+    writeFileSync(plan.paths.answerPath, 'PEER_OK\n', 'utf8')
+    const outcome = {
+      status: 'completed',
+      runId: plan.runId,
+      runDir: plan.paths.runDir,
+      mode: 'implement',
+      sandbox: 'workspace-write',
+      model: '',
+      cwd: work,
+      launcher: 'direct',
+      resumedThreadId: null,
+      threadId: 'thr-1',
+      answer: 'PEER_OK',
+      truncated: false,
+      usage: null,
+      commands: [{ command: 'npm test', exitCode: 0 }],
+      fileChanges: [],
+      errors: [],
+      notes: [],
+      exitCode: 0,
+      signal: null,
+      durationMs: 10,
+      startedAt: '2026-10-08T10:00:00.000Z',
+      endedAt: '2026-10-08T10:00:00.010Z',
+    }
+
+    const mirrored = mirrorRun({
+      root: workspaceRoot(subject.config, work),
+      runId: plan.runId,
+      plan,
+      outcome,
+      tasks: subject.tasks.list(),
+      now: outcome.endedAt,
+    })
+    assert.equal(mirrored.root, join(work, '.codex-peer'))
+    assert.ok(existsSync(mirrored.transcript))
+    assert.ok(existsSync(mirrored.latest))
+    assert.ok(existsSync(mirrored.worklist))
+    assert.ok(existsSync(join(mirrored.runDir, 'prompt.md')))
+    assert.ok(existsSync(join(mirrored.runDir, 'answer.md')))
+    assert.equal(readFileSync(mirrored.latest, 'utf8'), readFileSync(mirrored.transcript, 'utf8'))
+    assert.ok(readFileSync(mirrored.worklist, 'utf8').includes('task-1'))
+    assert.ok(readFileSync(join(work, '.codex-peer', 'README.md'), 'utf8').includes('LATEST.md'))
+
+    const refreshed = mirrorWorklist({ cwd: work, config: subject.config, tasks: subject.tasks.list(), at: '2026-10-08T11:00:00.000Z' })
+    assert.equal(refreshed, mirrored.worklist)
+    assert.equal(mirrorWorklist({ cwd: work, config: config({ workspaceDir: '' }), tasks: subject.tasks.list() }), undefined)
+    assert.equal(mirrorWorklist({ cwd: work, config: subject.config, tasks: [] }), undefined)
+  } finally {
+    rmSync(state, { recursive: true, force: true })
+    rmSync(work, { recursive: true, force: true })
+  }
+})
+
+test('a finished run also lands in the working tree, next to the code', async () => {
+  const state = tempDir('mirror-run-state')
+  const work = tempDir('mirror-run-work')
+  try {
+    const executable = join(state, 'codex.exe')
+    writeFileSync(executable, '')
+    const subject = {
+      config: config({ codexPath: executable, stateDir: state, workspaceDir: '.codex-peer' }),
+      ledger: createLedger({ dir: state }),
+      tasks: createTaskStore({ dir: state }),
+    }
+    subject.ledger.ensure()
+    const plan = planRun(subject, { prompt: 'Do it', mode: 'implement', cwd: work }, undefined)
+    const outcome = await executeRun(subject, plan, {
+      platform: 'linux',
+      env: { PATH: state },
+      spawnImpl: () => fakeChildProcess(SAMPLE_STREAM, 0),
+    })
+
+    assert.equal(outcome.status, 'completed')
+    assert.equal(outcome.workspace.root, join(work, '.codex-peer'))
+    const latest = join(work, '.codex-peer', 'LATEST.md')
+    assert.ok(existsSync(latest))
+    const text = readFileSync(latest, 'utf8')
+    assert.ok(text.includes('PEER_OK'))
+    assert.ok(text.includes('Do it'))
+    assert.ok(existsSync(join(work, '.codex-peer', 'runs', outcome.runId, 'transcript.md')))
+  } finally {
+    rmSync(state, { recursive: true, force: true })
+    rmSync(work, { recursive: true, force: true })
   }
 })

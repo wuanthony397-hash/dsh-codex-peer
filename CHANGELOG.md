@@ -4,6 +4,24 @@ All notable changes to `dsh-codex-peer` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] — 2026-10-08
+
+### Added
+
+- **The collaboration is readable from the working directory.** With `workspaceDir` (default
+  `.codex-peer`) every run is mirrored next to the code: `LATEST.md` (the newest transcript),
+  `worklist.md` (the shared work list), and `runs/<runId>/transcript.md` — the assembled request,
+  every command with its exit code, the files changed, the final answer, tokens and duration — with
+  the raw `prompt.md`, `events.jsonl`, `stderr.txt`, `answer.md`, and `meta.json` beside it. Set
+  `workspaceDir` to an empty string to turn the copy off; the state directory keeps the record either
+  way. A mirror that cannot be written is reported as a note on the run, never as a failure.
+- `codex_status` reports the workspace directory it writes to.
+
+### Changed
+
+- `worklist.md` is refreshed after every `codex_plan` and `codex_task` call, so the readable plan
+  follows the work list without waiting for a run.
+
 ## [0.2.3] — 2026-10-08
 
 ### Fixed
