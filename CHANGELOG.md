@@ -4,6 +4,16 @@ All notable changes to `dsh-codex-peer` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] — 2026-10-08
+
+### Changed
+
+- Both READMEs now lead with the plugin market in their install section. An entry for the curated
+  [`awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) registry has been
+  submitted, so `dsh plugin --profile <profile> add dsh-codex-peer` is documented next to the GitHub
+  and release-tarball routes, and the pinned examples point at this release. The blanket claim that
+  the plugin "is not listed in the plugin market" is gone; it is still not on npm.
+
 ## [0.3.1] — 2026-10-08
 
 ### Changed

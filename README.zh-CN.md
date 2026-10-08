@@ -52,20 +52,25 @@ Codex 桌面版不会把自己放进 `PATH`，因此按以下顺序探测，取�
 
 ## 安装
 
-本插件**没有发布到 npm，也没有上架插件市场**。请从 GitHub 安装，或用 Release 里的压缩包。
-两种方式都会带上 `dsh.bundle`，DSH 会把它登记到 `dsh.profile.bundles`；bundle 在启动时组装，
-因此**需要重启（或重载 profile）**工具才会出现。
+本插件**没有发布到 npm**，所以 `dsh plugin add dsh-codex-peer` 只有在市场上架后才会生效。上架请求
+已经提交给精选列表
+[`awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)；收录之前，请从
+GitHub 或用 Release 压缩包安装。两种方式都会带上 `dsh.bundle`，DSH 会把它登记到
+`dsh.profile.bundles`；bundle 在启动时组装，因此**需要重启（或重载 profile）**工具才会出现。
 
 ```bash
-# 从 GitHub 安装，锁定到某个发布 tag（推荐）
-dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.2.3
+# 市场收录后，可在市场里点安装，或这样装
+dsh plugin --profile <profile> add dsh-codex-peer
+
+# 从 GitHub 安装，锁定到某个发布 tag（现在就能用）
+dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.3.2
 
 # 或从 GitHub 安装，跟随默认分支
 dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer
 
 # 或用你下载下来的 Release 压缩包 —— 可离线安装，但请把文件留在原处：
 # profile 记录的是这个路径，移动或删除它会让下次安装失败
-dsh plugin --profile <profile> add /path/to/dsh-codex-peer-0.2.3.tgz
+dsh plugin --profile <profile> add /path/to/dsh-codex-peer-0.3.2.tgz
 
 # 或从本地克隆目录安装，适合自己改插件的时候
 dsh plugin --profile <profile> add /absolute/path/to/dsh-codex-peer

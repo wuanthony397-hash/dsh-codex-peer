@@ -55,21 +55,26 @@ and uses the first that exists:
 
 ## Install
 
-This plugin is **not published to npm and is not listed in the plugin market**. Install it from
-GitHub, or from the tarball attached to a release. Either way it contributes a `dsh.bundle`, so DSH
-records it in `dsh.profile.bundles`; a restart (or profile reload) is required before the tools
-appear, because bundles compose at startup.
+The plugin is **not on npm**, so `dsh plugin add dsh-codex-peer` resolves only once the market lists
+it. An entry for the curated
+[`awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) registry has been
+submitted; until it lands, install from GitHub or from a release tarball. Either way the plugin
+contributes a `dsh.bundle`, DSH records it in `dsh.profile.bundles`, and a restart (or profile
+reload) is required before the tools appear — bundles compose at startup.
 
 ```bash
-# from GitHub, pinned to a release tag (recommended)
-dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.2.3
+# from the plugin market, once it is listed (or the market's own install button)
+dsh plugin --profile <profile> add dsh-codex-peer
+
+# from GitHub, pinned to a release tag (works today)
+dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer#v0.3.2
 
 # or from GitHub, tracking the default branch
 dsh plugin --profile <profile> add github:wuanthony397-hash/dsh-codex-peer
 
 # or from a release tarball you downloaded — works offline, but keep the file where it is:
 # the profile records that path, so moving or deleting it breaks the next install
-dsh plugin --profile <profile> add /path/to/dsh-codex-peer-0.2.3.tgz
+dsh plugin --profile <profile> add /path/to/dsh-codex-peer-0.3.2.tgz
 
 # or from a local clone, when you are working on the plugin itself
 dsh plugin --profile <profile> add /absolute/path/to/dsh-codex-peer
