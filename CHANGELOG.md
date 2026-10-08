@@ -4,6 +4,21 @@ All notable changes to `dsh-codex-peer` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] — 2026-10-08
+
+### Added
+
+- A **Quick start** section in both READMEs (English and 简体中文): install, restart, confirm the
+  setup with `codex_status`, and what to say to get each of the six collaboration modes — plus the
+  daily actions (show the work list, run a task's Codex side, record evidence).
+- A plain affiliation note: the plugin is not affiliated with OpenAI or DeepSeek and ships no code
+  from either project.
+
+### Changed
+
+- Nothing in the code. This release exists so the published package carries the documentation the
+  repository shows.
+
 ## [0.2.1] — 2026-10-08
 
 ### Fixed

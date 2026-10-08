@@ -1,6 +1,6 @@
 {
   "name": "dsh-codex-peer",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Peer collaboration between a DeepSeek Harness agent and the local OpenAI Codex CLI: agree who does what, hand work over, review what comes back, and keep the work list, prompts, event streams, and answers on disk.",
   "type": "module",
   "main": "./index.js",
