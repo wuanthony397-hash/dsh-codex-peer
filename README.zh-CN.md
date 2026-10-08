@@ -2,9 +2,9 @@
 
 让 DeepSeek Harness（DSH）的 agent 与**本机 OpenAI Codex CLI** 以「同伴」方式协作。
 
-这不是集成：Codex 保留自己的会话、工具、技能、沙箱与模型，DSH 也保留自己的一套。两个 agent
-像在同一个仓库上的两个人那样交接工作 —— 一个先做一遍，另一个审查；一个出计划，另一个执行 ——
-通过普通的工具调用和共享工作树里的文件完成。
+Codex 和 DSH 各自保留自己的会话、工具、技能、沙箱与模型，没有集成在一起。
+两个 agent 通过普通工具调用和共享工作树里的文件交接工作，就像同一个仓库上的两个人：
+一个先做一遍，另一个审查。也可以一个出计划，另一个执行。
 
 ```
 你：让 Codex 把重试逻辑实现出来，然后审查它写的东西
@@ -52,7 +52,7 @@ Codex 桌面版不会把自己放进 `PATH`，因此按以下顺序探测，取�
 
 ## 安装
 
-本插件**没有发布到 npm，也没有上架插件市场** —— 请从 GitHub 安装，或用 Release 里的压缩包。
+本插件**没有发布到 npm，也没有上架插件市场**。请从 GitHub 安装，或用 Release 里的压缩包。
 两种方式都会带上 `dsh.bundle`，DSH 会把它登记到 `dsh.profile.bundles`；bundle 在启动时组装，
 因此**需要重启（或重载 profile）**工具才会出现。
 
@@ -77,11 +77,11 @@ Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releas
 
 ### 安装、重启、验证
 
-1. 按上面任意一种方式装好，然后**重启 DSH** —— 五个工具只在重启后出现（bundle 在启动时组装）。
+1. 按上面任意一种方式装好，然后**重启 DSH**，五个工具只在重启后出现（bundle 在启动时组装）。
 2. 检查环境：对 agent 说一句「看一下 codex 的状态」，它会调用 `codex_status`，打印 Codex 可执行
    文件的位置、生效配置和当前工作清单。
 
-然后用大白话说明你要什么。你不需要点名模式 —— 你描述协作方式，agent 挑配方。
+然后用大白话说明你要什么，描述想怎么协作。agent 会挑配方，你不需要点名模式。
 
 ### 六种模式
 
@@ -91,56 +91,59 @@ Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releas
 
 #### `assigned` —— 你指定谁做什么
 
-- **你说：**「这个你俩分工：Codex 做重试逻辑，你做测试。」
-- **agent 做什么：** 调用 `codex_plan`，`mode: "assigned"`，带上 `goal`，以及每块工作一条 `tasks`
-  记录 —— 每条含 `owner`（`dsh` 或 `codex`）、`acceptance`，可选 `scope`、`tags`、`why`。这份分工
-  不需要协商，所以可以给 `propose: "none"`，跳过 Codex 的批评。
-- **你拿到什么：** 已记录的工作清单 —— 任务 id、负责人、验收标准 —— 每个任务一行摘要。
-  `codex_task action: list` 随时能再打印同一份清单。
-- **什么时候选它：** 你已经知道怎么分工，只需要把它写下来。
+你已经知道怎么分工，只需要把它写下来。例如，你可以说：「这个你俩分工：Codex 做重试逻辑，你做测试。」
+
+agent 会调用 `codex_plan`，`mode: "assigned"`，带上 `goal`，以及每块工作一条 `tasks`
+记录。每条含 `owner`（`dsh` 或 `codex`）、`acceptance`，可选 `scope`、`tags`、`why`。这份分工
+不需要协商，所以可以给 `propose: "none"`，跳过 Codex 的批评。
+
+你会拿到已记录的工作清单，含任务 id、负责人和验收标准，每个任务一行摘要。
+`codex_task action: list` 随时能再打印同一份清单。
 
 #### `self-organizing` —— 两个 agent 按能力自己商量
 
-- **你说：**「你俩自己商量怎么把 X 做出来。」
-- **agent 做什么：** 调用 `codex_plan`，`mode: "self-organizing"`。默认 `propose: "dsh"` 时，本 agent
-  先起草分工，把草案交给 Codex 在一份 JSON schema 下批评，把批评里的风险并入备注，然后落成清单。
-  `propose: "codex"` 让 Codex 先起草；`propose: "none"` 跳过批评，直接按草案记录。
-- **你拿到什么：** 已记录的工作清单；只要跑过批评，还会看到 Codex 的批评摘要与逐条风险。
-- **什么时候选它：** 分工并不显然，你希望两个 agent 在开工前都表态。
+分工并不显然，你希望两个 agent 在开工前都表态。例如，你可以说：「你俩自己商量怎么把 X 做出来。」
+
+agent 会调用 `codex_plan`，`mode: "self-organizing"`。默认 `propose: "dsh"` 时，本 agent
+先起草分工，把草案交给 Codex 在一份 JSON schema 下批评，把批评里的风险并入备注，然后落成清单。
+`propose: "codex"` 让 Codex 先起草；`propose: "none"` 跳过批评，直接按草案记录。
+你会拿到已记录的工作清单；只要跑过批评，还会看到 Codex 的批评摘要与逐条风险。
 
 #### `pipeline` —— 分阶段推进
 
-- **你说：**「按流水线来：计划 → 实现 → 审查 → 修复。」
-- **agent 做什么：** 调用 `codex_plan`，`mode: "pipeline"`，建出四个阶段任务：`Plan:`（codex）、
-  `Implement:`（codex）、`Review:`（codex）、`Fix and verify:`（dsh）—— 每个都有负责人和验收标准。
-- **你拿到什么：** 按顺序排好的四个任务，每个都能单独用 `codex_task action: run` 跑，于是每个阶段
-  都留下自己的证据。
-- **什么时候选它：** 工作本来就有先后顺序，你希望每个阶段都能单独被审查。
+工作本来就有先后顺序，你希望每个阶段都能单独被审查。例如，你可以说：「按流水线来：计划 → 实现 → 审查 → 修复。」
+
+agent 会调用 `codex_plan`，`mode: "pipeline"`，建出四个阶段任务：`Plan:`（codex）、
+`Implement:`（codex）、`Review:`（codex）、`Fix and verify:`（dsh）。每个都有负责人和验收标准。
+
+你会拿到按顺序排好的四个任务，每个都能单独用 `codex_task action: run` 跑，于是每个阶段
+都留下自己的证据。
 
 #### `adversarial` —— 一方攻击另一方
 
-- **你说：**「让 Codex 先写一版，然后你来攻击它。」
-- **agent 做什么：** 调用 `codex_plan`，`mode: "adversarial"`，`producer: "codex"`，建出一条由 Codex
-  负责的产出任务和一条由本 agent 负责的攻击任务。`producer` 决定谁先写；默认是 `dsh`，也就是默认
-  由 Codex 来攻击。
-- **你拿到什么：** 两条任务 —— 一条产出、一条攻击 —— 攻击方的发现项记录为攻击任务的证据。
-- **什么时候选它：** 你想要一版初稿，外加一次独立的拆台尝试。
+你想要一版初稿，外加一次独立的拆台尝试。例如，你可以说：「让 Codex 先写一版，然后你来攻击它。」
+
+agent 会调用 `codex_plan`，`mode: "adversarial"`，`producer: "codex"`，建出一条由 Codex
+负责的产出任务和一条由本 agent 负责的攻击任务。`producer` 决定谁先写；默认是 `dsh`，也就是默认
+由 Codex 来攻击。
+你会拿到两条任务，一条产出、一条攻击。攻击方的发现项记录为攻击任务的证据。
 
 #### `blind` —— 各自独立做，再比较
 
-- **你说：**「你俩各自独立做一份，然后比较。」
-- **agent 做什么：** 调用 `codex_plan`，`mode: "blind"`，建出两份独立尝试（`Independent attempt (dsh)`
-  与 `Independent attempt (codex)`），再加一条由本 agent 负责的 `Compare and pick` 任务。
-- **你拿到什么：** 两份互不知情的尝试，以及一条以比较结果作为证据的决策任务。
-- **什么时候选它：** 你不想让一种思路先入为主地影响另一种。
+你不想让一种思路先入为主地影响另一种。例如，你可以说：「你俩各自独立做一份，然后比较。」
+
+agent 会调用 `codex_plan`，`mode: "blind"`，建出两份独立尝试（`Independent attempt (dsh)`
+与 `Independent attempt (codex)`），再加一条由本 agent 负责的 `Compare and pick` 任务。
+
+你会拿到两份互不知情的尝试，以及一条以比较结果作为证据的决策任务。
 
 #### `consult` —— 只问一个问题，不建清单
 
-- **你说：**「就问 Codex 一句 X 怎么看。」
-- **agent 做什么：** 调用 `codex_ask`，把你这句话作为 prompt —— 若你想要的是对某份 diff 的结构化结论，
-  则改用 `codex_review`。工作清单里不记录任何东西。
-- **你拿到什么：** Codex 的回答，或带着按严重度排序发现项的审查结论，以及这次运行的留档。
-- **什么时候选它：** 你要的是一个意见，而不是一次分工。
+想听一个意见、无需分工时可以用它。例如，你可以说：「就问 Codex 一句 X 怎么看。」
+
+agent 会调用 `codex_ask`，把你这句话作为 prompt。若你想要的是对某份 diff 的结构化结论，
+则改用 `codex_review`。工作清单里不记录任何东西。
+你会拿到 Codex 的回答，或带着按严重度排序发现项的审查结论，以及这次运行的留档。
 
 ### 日常操作
 
@@ -156,11 +159,11 @@ Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releas
 
 - 建清单时会审批一次。`approvePerTask` 默认为 `true`，因此这份清单覆盖的任务之后不再逐次询问；
   设为 `false` 则恢复逐次询问。
-- 每个任务都带 Codex 预算 —— 默认 5 次运行、200 万 token —— 预算用尽后，挂在任务上的运行会被拒绝
+- 每个任务都带 Codex 预算（默认 5 次运行、200 万 token），预算用尽后，挂在任务上的运行会被拒绝
   并说明原因。可以用 `codex_task action: set-budget` 提高。
 - **没有证据不能标记完成。** 证据还没到手时，把任务标为 `unverified`，并写明缺什么。
 
-下面各节把每个工具、每个配置项都写清楚了；但你不需要先读完 —— 让 agent 调就行。
+每个工具和配置项都在下面有说明。开始用时不必先读完，agent 会调用工具。
 
 ## 工作原理
 
@@ -190,8 +193,8 @@ Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releas
 
 ### 预算
 
-每个任务都带 `budget: {maxRuns, maxTokens}` 与 `spent: {runs, tokens}`。任务范围内的运行 ——
-`codex_task action:run`，或任何挂在任务上的运行 —— 在预算用尽后都会被拒绝，报错点明是哪个
+每个任务都带 `budget: {maxRuns, maxTokens}` 与 `spent: {runs, tokens}`。任务范围内的运行，包括
+`codex_task action:run`，或任何挂在任务上的运行，在预算用尽后都会被拒绝，报错点明是哪个
 上限，并指向 `codex_task action:set-budget`。默认值为 `maxCodexRunsPerTask: 5`、
 `maxCodexTokensPerTask: 2000000`（`0` 表示不设 token 上限）。
 
@@ -204,14 +207,14 @@ Release 压缩包在 <https://github.com/wuanthony397-hash/dsh-codex-peer/releas
   任务范围内写盘。`approvePerTask: true`（默认）时，已批准任务中会写盘的 Codex 运行不再逐次
   询问；`approvePerTask: false` 则恢复逐次询问。
 - `requireApproval: mutating`（默认）对任何可能写盘的运行提问：`mode: implement`、
-  `sandbox: workspace-write`、`sandbox: danger-full-access` —— 但 `approvePerTask` 下已被批准任务
+  `sandbox: workspace-write`、`sandbox: danger-full-access`，但 `approvePerTask` 下已被批准任务
   覆盖的运行除外。
 - `codex_review` 固定 `read-only`，在 `mutating` 下不会触发审批。
 - 审批走 Harness 的审批服务，且是 fail-closed：没有可用的审批者时直接拒绝，而不是照跑。
 
 Codex 自己需要写它的 home（`~/.codex`：状态、日志、`auth.json`）。若调用报
 `failed to initialize in-process app-server client: 拒绝访问 (os error 5)` 或
-`could not create PATH aliases`，说明当前限制下 Codex 的 home 不可写 —— 为该命令放宽沙箱，
+`could not create PATH aliases`，说明当前限制下 Codex 的 home 不可写。为该命令放宽沙箱，
 或把 `codexHome` 指到可写目录（此时需要复制一份 `auth.json`，并注意 Codex 会轮换 refresh token）。
 
 ### 后台运行
@@ -230,7 +233,7 @@ Harness 的 job 服务加载后（base bundle 自带），每次运行都会成�
 1. 提示词是一份协作契约，而不只是你的原话：说明共享工作树、说明**没有人类会回答问题**（因此
    Codex 必须自行假设并继续）、改动限制在请求范围内、最终消息必须自洽（改了什么、证据、未决问题）。
    `promptPreamble` 可替换该契约。
-2. 提示词走 **stdin**（`codex exec … -`），不走命令行 —— Windows 命令行上限约 32k 字符，交接提示
+2. 提示词走 **stdin**（`codex exec … -`），不走命令行。Windows 命令行上限约 32k 字符，交接提示
    很容易超过。
 3. `codex exec resume` 既不接受 `-s/--sandbox` 也不接受 `-C/--cd`，因此续跑用
    `-c sandbox_mode="…"` 固定沙箱，工作目录由子进程的 cwd 决定。
@@ -246,7 +249,7 @@ Harness 的 job 服务加载后（base bundle 自带），每次运行都会成�
 
 ### 工作目录：你读的那份
 
-插件把可读镜像写在该次运行的工作目录下，路径是 `<cwd>/<workspaceDir>/` —— 默认
+插件把可读镜像写在该次运行的工作目录下，路径是 `<cwd>/<workspaceDir>/`，默认
 `<cwd>/.codex-peer/`：
 
 ```
@@ -266,11 +269,11 @@ Harness 的 job 服务加载后（base bundle 自带），每次运行都会成�
 
 这个目录就是你用来看协作过程的地方：`worklist.md` 是清单当前的样子，`LATEST.md` 是刚结束的那次
 运行，`runs/<runId>/transcript.md` 是任意一次运行的完整记录。它删掉也没关系，加进 `.gitignore`
-也没关系 —— 插件会重新写。把 `workspaceDir` 设为 `''` 可以完全关掉这份镜像。
+也没关系，插件会重新写。把 `workspaceDir` 设为 `''` 可以完全关掉这份镜像。
 
 ### 状态目录：插件读的那份
 
-状态目录是 `$DSH_HOME/codex-peer` —— 未设置 `DSH_HOME` 时即
+状态目录是 `$DSH_HOME/codex-peer`，未设置 `DSH_HOME` 时即
 `C:\Users\AnthonyWu\.dsh\codex-peer`。它是唯一事实来源：
 
 ```
@@ -291,12 +294,12 @@ $DSH_HOME/codex-peer/
 不会自动清理：在意体积时自行删除旧的 `runs/<runId>`。配置的 `planFile` 镜像写在仓库里，
 不写在这个目录。
 
-各一句话：工作目录里的那份是给人看的 —— 读它、删它、在 git 里忽略它都行；状态目录里的那份是
-插件读的记录 —— 运行索引、线程记忆，以及它继续推进的工作清单。
+工作目录里的副本供人阅读，可以删除，也可以在 git 里忽略。
+插件读取状态目录里的记录：运行索引、线程记忆，以及继续推进工作所需的清单。
 
 ## 配置
 
-所有配置都在 profile 的 `cordis.patch.yml` 里 —— 工具里没有任何硬编码的路径、模型或策略。
+所有配置都在 profile 的 `cordis.patch.yml` 里。工具里没有硬编码的路径、模型或策略。
 同 id 的 patch 行会**整体替换**该 id 的 `config`，所以要写全：
 
 ```yaml
@@ -405,7 +408,7 @@ node test/run-as-linux.mjs    # 同样的测试，让 process.platform 假装是
 ```
 
 `npm test` 跑 55 个离线测试。`node test/run-as-linux.mjs` 用同一套测试，只把 `process.platform`
-假装成 Linux —— 因为 Windows CI 与 Linux CI 两条腿走的是不同分支（`normalizeCwd` 的大小写折叠、
+假装成 Linux，因为 Windows CI 与 Linux CI 两条腿走的是不同分支（`normalizeCwd` 的大小写折叠、
 `taskkill` 与 `process.kill`、detached spawn）。它是开发辅助脚本，不是测试。
 
 测试从不启动 Codex：`executeRun` 接收注入的 `spawnImpl` 来重放一段真实抓取的

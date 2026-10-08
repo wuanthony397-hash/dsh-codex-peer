@@ -4,6 +4,16 @@ All notable changes to `dsh-codex-peer` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] — 2026-10-08
+
+### Changed
+
+- Both READMEs were rewritten for tone, following the humanizer skill: the prose now varies in
+  rhythm instead of marching through uniformly long parallel sentences, each mode section says when
+  to pick it instead of opening with a bold label, and the Chinese file lost its template phrasing.
+  No fact, number, default, tool name, config key, path, command, table row, or heading changed, and
+  the two files still mirror each other section for section.
+
 ## [0.3.0] — 2026-10-08
 
 ### Added

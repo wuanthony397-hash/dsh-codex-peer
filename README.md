@@ -2,10 +2,10 @@
 
 Peer collaboration between a DeepSeek Harness (DSH) agent and the local OpenAI **Codex CLI**.
 
-Not an integration: Codex keeps its own session, tools, skills, sandbox, and model; DSH keeps its own.
-The two agents exchange work the way two people on one repository do — one does a pass, the other
-reviews it; one plans, the other executes — through ordinary tool calls and the files in the shared
-working tree.
+Codex and DSH each keep their own session, tools, skills, sandbox, and model. They are not integrated.
+They exchange work through ordinary tool calls and files in the shared working tree, much as two
+people on one repository would. One does a pass and the other reviews it. Or one plans and the
+other executes.
 
 ```
 You: "have Codex implement the retry logic, then review what it wrote"
@@ -50,12 +50,12 @@ and uses the first that exists:
 4. `%APPDATA%\npm\codex.cmd`;
 5. `codex` / `codex.exe` / `codex.cmd` / `codex.bat` on `PATH`.
 
-`codex_status` prints the winner, its source, and the candidates it rejected — if a call fails with
+`codex_status` prints the winner, its source, and the candidates it rejected. If a call fails with
 `codex CLI not found`, that output says exactly which paths were considered.
 
 ## Install
 
-This plugin is **not published to npm and is not listed in the plugin market** — install it from
+This plugin is **not published to npm and is not listed in the plugin market**. Install it from
 GitHub, or from the tarball attached to a release. Either way it contributes a `dsh.bundle`, so DSH
 records it in `dsh.profile.bundles`; a restart (or profile reload) is required before the tools
 appear, because bundles compose at startup.
@@ -81,13 +81,13 @@ Release tarballs live at <https://github.com/wuanthony397-hash/dsh-codex-peer/re
 
 ### Install, restart, verify
 
-1. Install it (any way above) and **restart DSH** — the five tools appear only after a restart,
+1. Install it (any way above) and **restart DSH**. The five tools appear only after a restart,
    because bundles compose at startup.
 2. Check the setup by asking your agent *"check the codex peer status"*: it calls `codex_status` and
    prints where the Codex executable was found, the effective settings, and the work list.
 
-Then say what you want in plain language. You never name a mode — you describe the collaboration and
-the agent picks the recipe.
+Then say what you want in plain language and describe how you want to collaborate.
+The agent picks the recipe; you never need to name a mode.
 
 ### The six modes
 
@@ -98,66 +98,69 @@ over that same work list.
 
 #### `assigned` — you name who does what
 
-- **You say:** "Split this between you two: Codex does the retry logic, you do the tests."
-- **What the agent does:** calls `codex_plan` with `mode: "assigned"`, the `goal`, and one `tasks`
-  entry per piece, each with `owner` (`dsh` or `codex`), `acceptance`, and optionally `scope`,
-  `tags`, and `why`. Nothing has to be negotiated, so `propose: "none"` is allowed and skips the
-  critique.
-- **What you get back:** the recorded work list — task ids, owners, acceptance lines — printed as a
-  one-line summary per task. `codex_task action: list` prints the same list at any time.
-- **Pick it when:** you already know the split and want it written down.
+Use it when you already know the split and want it written down. For example: "Split this between you two: Codex does the retry logic, you do the tests."
+
+The agent calls `codex_plan` with `mode: "assigned"`, the `goal`, and one `tasks`
+entry per piece, each with `owner` (`dsh` or `codex`), `acceptance`, and optionally `scope`,
+`tags`, and `why`. Nothing has to be negotiated, so `propose: "none"` is allowed and skips the
+critique.
+
+You get the recorded work list with task ids, owners, and acceptance lines, printed as a
+one-line summary per task. `codex_task action: list` prints the same list at any time.
 
 #### `self-organizing` — the two agents decide, by strength
 
-- **You say:** "Work out between yourselves how to do X."
-- **What the agent does:** calls `codex_plan` with `mode: "self-organizing"`. With the default
-  `propose: "dsh"`, this agent drafts the split, sends the draft to Codex for a critique under a JSON
-  schema, folds the critique's risks into the notes, and then records it. `propose: "codex"` lets
-  Codex draft first; `propose: "none"` skips the critique and records the draft as-is.
-- **What you get back:** the recorded work list, plus Codex's critique summary and its risk lines
-  whenever a critique ran.
-- **Pick it when:** the split is not obvious, and you want both agents to weigh in before anyone
-  starts.
+Use it when the split is not obvious, and you want both agents to weigh in before anyone
+starts. For example: "Work out between yourselves how to do X."
+
+It calls `codex_plan` with `mode: "self-organizing"`. With the default
+`propose: "dsh"`, this agent drafts the split, sends the draft to Codex for a critique under a JSON
+schema, folds the critique's risks into the notes, and then records it. `propose: "codex"` lets
+Codex draft first; `propose: "none"` skips the critique and records the draft as-is.
+You get the recorded work list, plus Codex's critique summary and its risk lines
+whenever a critique ran.
 
 #### `pipeline` — staged work
 
-- **You say:** "Do it as a pipeline: plan, implement, review, fix."
-- **What the agent does:** calls `codex_plan` with `mode: "pipeline"`, which creates four staged
-  tasks: `Plan:` (codex), `Implement:` (codex), `Review:` (codex), and `Fix and verify:` (dsh) — each
-  with an owner and an acceptance line.
-- **What you get back:** the four tasks in order, each runnable on its own with
-  `codex_task action: run`, so every stage leaves its own evidence.
-- **Pick it when:** the work has a natural order and you want each stage to be reviewable on its own.
+Use it when the work has a natural order and you want each stage to be reviewable on its own. For example: "Do it as a pipeline: plan, implement, review, fix."
+
+The agent calls `codex_plan` with `mode: "pipeline"`, which creates four staged
+tasks: `Plan:` (codex), `Implement:` (codex), `Review:` (codex), and `Fix and verify:` (dsh), each
+with an owner and an acceptance line.
+
+You get the four tasks in order, each runnable on its own with
+`codex_task action: run`, so every stage leaves its own evidence.
 
 #### `adversarial` — one side attacks the other
 
-- **You say:** "Let Codex write a first version, then attack it."
-- **What the agent does:** calls `codex_plan` with `mode: "adversarial"` and `producer: "codex"`,
-  which creates a produce task owned by Codex and an attack task owned by this agent. `producer`
-  picks who writes first; the default is `dsh`, so by default Codex is the attacker.
-- **What you get back:** two tasks — one produce, one attack — with the attacker's findings recorded
-  as the attack task's evidence.
-- **Pick it when:** you want a first version and an independent attempt to break it.
+Use it when you want a first version and an independent attempt to break it. For example: "Let Codex write a first version, then attack it."
+
+It calls `codex_plan` with `mode: "adversarial"` and `producer: "codex"`,
+which creates a produce task owned by Codex and an attack task owned by this agent. `producer`
+picks who writes first; the default is `dsh`, so by default Codex is the attacker.
+You get a produce task and an attack task, with the attacker's findings recorded
+as the attack task's evidence.
 
 #### `blind` — independent attempts, then compare
 
-- **You say:** "Both of you attempt it independently, then compare."
-- **What the agent does:** calls `codex_plan` with `mode: "blind"`, which creates two independent
-  attempts (`Independent attempt (dsh)` and `Independent attempt (codex)`) plus a `Compare and pick`
-  task owned by this agent.
-- **What you get back:** two attempts that did not see each other, and a decision task whose evidence
-  is the comparison.
-- **Pick it when:** you do not want one approach to anchor the other.
+Use it when you do not want one approach to anchor the other. For example: "Both of you attempt it independently, then compare."
+
+The agent calls `codex_plan` with `mode: "blind"`, which creates two independent
+attempts (`Independent attempt (dsh)` and `Independent attempt (codex)`) plus a `Compare and pick`
+task owned by this agent.
+
+You get two attempts that did not see each other, and a decision task whose evidence
+is the comparison.
 
 #### `consult` — one question, no work list
 
-- **You say:** "Just ask Codex what it thinks about X."
-- **What the agent does:** calls `codex_ask` with your question as the prompt — or `codex_review`
-  when you want a structured verdict on a diff instead of prose. Nothing is recorded in the work
-  list.
-- **What you get back:** Codex's answer, or the review verdict with its severity-ranked findings, and
-  the run's transcript.
-- **Pick it when:** you want an opinion, not a division of labour.
+Use it when you want an opinion without dividing up the work. For example: "Just ask Codex what it thinks about X."
+
+The agent calls `codex_ask` with your question as the prompt, or `codex_review`
+when you want a structured verdict on a diff instead of prose. Nothing is recorded in the work
+list.
+You get Codex's answer, or the review verdict with its severity-ranked findings, and
+the run's transcript.
 
 ### Everyday actions
 
@@ -173,14 +176,14 @@ over that same work list.
 
 - Creating a plan asks for approval once. `approvePerTask` defaults to `true`, so the tasks that plan
   covers then run without a per-run prompt; set it to `false` to be asked per run.
-- Every task carries a Codex budget — 5 runs and 2M tokens by default — and a task-scoped run is
+- Every task carries a Codex budget (5 runs and 2M tokens by default), and a task-scoped run is
   refused, with the reason, once the budget is spent. Raise it with
   `codex_task action: set-budget`.
 - A task cannot be marked `done` without evidence. When the proof is not there yet, mark it
   `unverified` and say what is missing.
 
-Every tool and every knob is documented in the sections below — none of it is required reading to
-start, because the agent drives the tools.
+The sections below document every tool and setting. You can start without reading them all,
+because the agent drives the tools.
 
 ## How it works
 
@@ -213,14 +216,14 @@ single source of truth.
 
 ### Budgets
 
-Every task carries `budget: {maxRuns, maxTokens}` and `spent: {runs, tokens}`. A task-scoped run —
-`codex_task action:run`, or any run attached to a task — is refused once the budget is reached, with
+Every task carries `budget: {maxRuns, maxTokens}` and `spent: {runs, tokens}`. A task-scoped run, including
+`codex_task action:run`, or any run attached to a task, is refused once the budget is reached, with
 a message naming the limit and pointing at `codex_task action:set-budget`. The defaults are
 `maxCodexRunsPerTask: 5` and `maxCodexTokensPerTask: 2000000` (`0` disables the token ceiling).
 
 ### Approval and sandboxing
 
-Starting Codex starts a second agent with write access to the same tree — and that child is **not**
+Starting Codex starts a second agent with write access to the same tree, and that child is **not**
 wrapped by the Harness sandbox. The `-s/--sandbox` mode handed to `codex exec` is the only bound on
 what it writes, which is why the plugin asks first:
 
@@ -228,7 +231,7 @@ what it writes, which is why the plugin asks first:
   what lets Codex write inside those tasks. With `approvePerTask: true` (default) an approved task's
   mutating Codex runs no longer ask one by one; `approvePerTask: false` restores per-run asking.
 - `requireApproval: mutating` (default) asks before any run that may write: `mode: implement`,
-  `sandbox: workspace-write`, or `sandbox: danger-full-access` — except a run covered by an approved
+  `sandbox: workspace-write`, or `sandbox: danger-full-access`, except a run covered by an approved
   task under `approvePerTask`.
 - `codex_review` is pinned to `read-only` and never asks under `mutating`.
 - The ask goes through the Harness approval service, and it is fail-closed: with no approver
@@ -236,7 +239,7 @@ what it writes, which is why the plugin asks first:
 
 Codex itself needs to write its own home directory (`~/.codex`: state, logs, `auth.json`). If a call
 fails with `failed to initialize in-process app-server client: 拒绝访问 (os error 5)` or
-`could not create PATH aliases`, Codex's home is not writable in the current confinement — widen the
+`could not create PATH aliases`, Codex's home is not writable in the current confinement. Widen the
 sandbox for that command, or point `codexHome` at a writable directory (a copy of `auth.json` is
 then required, and note Codex rotates refresh tokens).
 
@@ -261,7 +264,7 @@ instead of silently behaving differently.
    that no human will answer a question (so Codex must assume and proceed), that changes stay in
    scope, and that the final message must stand alone with what changed, the evidence, and open
    questions. `promptPreamble` replaces that contract.
-2. The prompt travels on **stdin** (`codex exec … -`), never on the command line — Windows caps a
+2. The prompt travels on **stdin** (`codex exec … -`), never on the command line. Windows caps a
    command line at ~32k characters and a hand-off prompt exceeds that.
 3. `codex exec resume` accepts neither `-s/--sandbox` nor `-C/--cd`, so resumed runs pin the sandbox
    with `-c sandbox_mode="…"` and inherit the working directory from the spawned process.
@@ -299,12 +302,12 @@ by default `<cwd>/.codex-peer/`:
 
 This folder is what you read to see the collaboration: `worklist.md` is the plan as it stands,
 `LATEST.md` is the run that just finished, and `runs/<runId>/transcript.md` is the full account of
-any run. It is safe to delete, and safe to add to `.gitignore` — the plugin rewrites it. Set
+any run. It is safe to delete, and safe to add to `.gitignore`; the plugin rewrites it. Set
 `workspaceDir` to `''` to switch the mirror off entirely.
 
 ### The state directory: what the plugin reads
 
-The state directory is `$DSH_HOME/codex-peer` — with `DSH_HOME` unset that is
+The state directory is `$DSH_HOME/codex-peer`. With `DSH_HOME` unset, that is
 `C:\Users\AnthonyWu\.dsh\codex-peer`. It is the source of truth:
 
 ```
@@ -325,14 +328,13 @@ $DSH_HOME/codex-peer/
 Nothing is pruned automatically: delete old `runs/<runId>` directories when you care about size. A
 configured `planFile` mirror is written into the repository, not into this directory.
 
-In one line each: the workspace copy is for the human — read it, delete it, ignore it in git; the
-state copy is the record the plugin reads — the run index, the thread memory, and the work list it
-continues from.
+You can read the workspace copy, delete it, or ignore it in git.
+The plugin reads the state copy: the run index, thread memory, and work list it continues from.
 
 ## Configuration
 
-Configuration lives in the profile's `cordis.patch.yml` — no path, model, or policy is hardcoded in
-the tools. A patch row replaces the whole `config` block of that id, so state it completely:
+Configuration lives in the profile's `cordis.patch.yml`. The tools have no hardcoded paths, models,
+or policies. A patch row replaces the whole `config` block of that id, so state it completely:
 
 ```yaml
 - insert:
