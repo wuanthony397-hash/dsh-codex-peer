@@ -1,5 +1,7 @@
 # dsh-codex-peer
 
+[![CI](https://github.com/wuanthony397-hash/dsh-codex-peer/actions/workflows/ci.yml/badge.svg)](https://github.com/wuanthony397-hash/dsh-codex-peer/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/wuanthony397-hash/dsh-codex-peer?sort=semver&label=release)](https://github.com/wuanthony397-hash/dsh-codex-peer/releases) [![License](https://img.shields.io/github/license/wuanthony397-hash/dsh-codex-peer?label=license)](https://github.com/wuanthony397-hash/dsh-codex-peer/blob/main/LICENSE)
+
 让 DeepSeek Harness（DSH）的 agent 与**本机 OpenAI Codex CLI** 以「同伴」方式协作。
 
 Codex 和 DSH 各自保留自己的会话、工具、技能、沙箱与模型，没有集成在一起。

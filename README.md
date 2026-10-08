@@ -1,5 +1,7 @@
 # dsh-codex-peer
 
+[![CI](https://github.com/wuanthony397-hash/dsh-codex-peer/actions/workflows/ci.yml/badge.svg)](https://github.com/wuanthony397-hash/dsh-codex-peer/actions/workflows/ci.yml) [![Release](https://img.shields.io/github/v/release/wuanthony397-hash/dsh-codex-peer?sort=semver&label=release)](https://github.com/wuanthony397-hash/dsh-codex-peer/releases) [![License](https://img.shields.io/github/license/wuanthony397-hash/dsh-codex-peer?label=license)](https://github.com/wuanthony397-hash/dsh-codex-peer/blob/main/LICENSE)
+
 Peer collaboration between a DeepSeek Harness (DSH) agent and the local OpenAI **Codex CLI**.
 
 Codex and DSH each keep their own session, tools, skills, sandbox, and model. They are not integrated.

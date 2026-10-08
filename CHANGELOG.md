@@ -4,6 +4,12 @@ All notable changes to `dsh-codex-peer` are recorded here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.4] — 2026-10-08
+
+### Added
+
+- README badges for CI status, the latest release, and the license — on both language versions.
+
 ## [0.3.3] — 2026-10-08
 
 ### Changed
