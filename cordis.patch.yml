@@ -1,0 +1,10 @@
+# Bundle layer for dsh-codex-peer.
+#
+# The shipped layer mounts the plugin with its own defaults. A later patch row
+# with the same id (`codex-peer`) replaces this whole `config` object, so a
+# profile that customizes one field must restate the fields it wants to keep —
+# that rule belongs to cordis patches, not to this plugin.
+- insert:
+    - id: codex-peer
+      name: 'dsh-codex-peer'
+      config: {}

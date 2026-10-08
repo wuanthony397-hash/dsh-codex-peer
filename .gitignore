@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# install artefacts: the DSH profile installs from a tarball path, so the built
+# package does not belong in the repository
+*.tgz
+*.tar.gz
+
+# the optional plan mirror written into a project when planFile is configured
+.codex-peer/
+
+# logs and caches
+*.log
+npm-debug.log*
+.tmp/
+.cache/
+
+# editors and operating systems
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp

@@ -1,0 +1,3 @@
+# Normalise line endings in the repository: LF in the index and on checkout, so
+# Windows, macOS, and CI all see the same bytes.
+* text=auto eol=lf
