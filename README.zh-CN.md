@@ -58,7 +58,7 @@ Codex 桌面版不会把自己放进 `PATH`，因此按以下顺序探测，取�
 已经提交给精选列表
 [`awesome-dsh-plugin`](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin)；收录之前，请从
 GitHub 或用 Release 压缩包安装。两种方式都会带上 `dsh.bundle`，DSH 会把它登记到
-`dsh.profile.bundles`；bundle 在启动时组装，因此**需要重启（或重载 profile）**工具才会出现。
+`dsh.profile.bundles`；bundle 在启动时组装，因此需要重启（或重载 profile）工具才会出现。
 
 ```bash
 # 市场收录后，可在市场里点安装，或这样装
